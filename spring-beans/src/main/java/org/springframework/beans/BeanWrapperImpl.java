@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,7 +70,7 @@ public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements
 	private CachedIntrospectionResults cachedIntrospectionResults;
 
 	/**
-	 * The security context used for invoking the property methods
+	 * The security context used for invoking the property methods.
 	 */
 	@Nullable
 	private AccessControlContext acc;
@@ -166,7 +166,7 @@ public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements
 	}
 
 	/**
-	 * Obtain a lazily initializted CachedIntrospectionResults instance
+	 * Obtain a lazily initialized CachedIntrospectionResults instance
 	 * for the wrapped object.
 	 */
 	private CachedIntrospectionResults getCachedIntrospectionResults() {
@@ -283,7 +283,7 @@ public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements
 		@Override
 		@Nullable
 		public TypeDescriptor nested(int level) {
-			return TypeDescriptor.nested(property(pd), level);
+			return TypeDescriptor.nested(property(this.pd), level);
 		}
 
 		@Override

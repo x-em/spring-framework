@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,7 @@ public class PublisherHandlerFunctionIntegrationTests extends AbstractRouterFunc
 
 
 	@Test
-	public void mono() throws Exception {
+	public void mono() {
 		ResponseEntity<Person> result =
 				restTemplate.getForEntity("http://localhost:" + port + "/mono", Person.class);
 
@@ -63,7 +63,7 @@ public class PublisherHandlerFunctionIntegrationTests extends AbstractRouterFunc
 	}
 
 	@Test
-	public void flux() throws Exception {
+	public void flux() {
 		ParameterizedTypeReference<List<Person>> reference = new ParameterizedTypeReference<List<Person>>() {};
 		ResponseEntity<List<Person>> result =
 				restTemplate.exchange("http://localhost:" + port + "/flux", HttpMethod.GET, null, reference);

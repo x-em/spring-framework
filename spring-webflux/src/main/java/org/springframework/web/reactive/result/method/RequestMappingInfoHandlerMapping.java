@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,6 +50,7 @@ import org.springframework.web.util.pattern.PathPattern;
  * the mapping between a request and a handler method.
  *
  * @author Rossen Stoyanchev
+ * @author Sam Brannen
  * @since 5.0
  */
 public abstract class RequestMappingInfoHandlerMapping extends AbstractHandlerMethodMapping<RequestMappingInfo> {
@@ -303,7 +304,8 @@ public abstract class RequestMappingInfoHandlerMapping extends AbstractHandlerMe
 
 
 			/**
-			 * @param info RequestMappingInfo that matches the URL path
+			 * Create a new {@link PartialMatch} instance.
+			 * @param info the RequestMappingInfo that matches the URL path
 			 * @param exchange the current exchange
 			 */
 			public PartialMatch(RequestMappingInfo info, ServerWebExchange exchange) {
@@ -365,6 +367,7 @@ public abstract class RequestMappingInfoHandlerMapping extends AbstractHandlerMe
 				if (result.contains(HttpMethod.GET)) {
 					result.add(HttpMethod.HEAD);
 				}
+				result.add(HttpMethod.OPTIONS);
 				return result;
 			}
 		}

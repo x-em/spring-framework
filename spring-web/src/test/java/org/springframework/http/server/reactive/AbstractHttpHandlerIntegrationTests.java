@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -88,7 +88,7 @@ public abstract class AbstractHttpHandlerIntegrationTests {
 	 * set the number of buffered to an arbitrary number greater than N.
 	 * </ul>
 	 */
-	public static Flux<Long> interval(Duration period, int count) {
+	public static Flux<Long> testInterval(Duration period, int count) {
 		return Flux.interval(period).take(count).onBackpressureBuffer(count);
 	}
 

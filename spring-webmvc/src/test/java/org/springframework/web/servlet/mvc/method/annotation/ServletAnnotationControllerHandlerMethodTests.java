@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,12 +67,13 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.config.PropertyPlaceholderConfigurer;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.beans.propertyeditors.CustomDateEditor;
 import org.springframework.context.annotation.AnnotationConfigUtils;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.format.support.FormattingConversionServiceFactoryBean;
 import org.springframework.http.HttpEntity;
@@ -149,11 +151,13 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.web.servlet.view.AbstractView;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
+import static org.assertj.core.api.Assertions.*;
 import static org.junit.Assert.*;
 
 /**
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
+ * @author Sam Brannen
  */
 public class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandlerMethodTests {
 
@@ -249,7 +253,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 	@Test
 	public void defaultExpressionParameters() throws Exception {
 		initServlet(wac -> {
-			RootBeanDefinition ppc = new RootBeanDefinition(PropertyPlaceholderConfigurer.class);
+			RootBeanDefinition ppc = new RootBeanDefinition(PropertySourcesPlaceholderConfigurer.class);
 			ppc.getPropertyValues().add("properties", "myKey=foo");
 			wac.registerBeanDefinition("ppc", ppc);
 		}, DefaultExpressionValueParamController.class);
@@ -785,15 +789,42 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 	}
 
 	@Test
-	public void equivalentMappingsWithSameMethodName() throws Exception {
-		try {
-			initServletWithControllers(ChildController.class);
-			fail("Expected 'method already mapped' error");
-		}
-		catch (BeanCreationException e) {
-			assertTrue(e.getCause() instanceof IllegalStateException);
-			assertTrue(e.getCause().getMessage().contains("Ambiguous mapping"));
-		}
+	public void equivalentMappingsWithSameMethodName() {
+		assertThatThrownBy(() -> initServletWithControllers(ChildController.class))
+			.isInstanceOf(BeanCreationException.class)
+			.hasCauseInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("Ambiguous mapping");
+	}
+
+	@Test // gh-22543
+	public void unmappedPathMapping() throws Exception {
+		initServletWithControllers(UnmappedPathController.class);
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/bogus-unmapped");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals(404, response.getStatus());
+
+		request = new MockHttpServletRequest("GET", "");
+		response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals(200, response.getStatus());
+		assertEquals("get", response.getContentAsString());
+	}
+
+	@Test
+	public void explicitAndEmptyPathsControllerMapping() throws Exception {
+		initServletWithControllers(ExplicitAndEmptyPathsController.class);
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals("get", response.getContentAsString());
+
+		request = new MockHttpServletRequest("GET", "");
+		response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals("get", response.getContentAsString());
 	}
 
 	@Test
@@ -1121,7 +1152,22 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 
 	@Test
 	public void produces() throws Exception {
-		initServletWithControllers(ProducesController.class);
+		initServlet(wac -> {
+			List<HttpMessageConverter<?>> converters = new ArrayList<>();
+			converters.add(new MappingJackson2HttpMessageConverter());
+			converters.add(new Jaxb2RootElementHttpMessageConverter());
+
+			RootBeanDefinition beanDef;
+
+			beanDef = new RootBeanDefinition(RequestMappingHandlerAdapter.class);
+			beanDef.getPropertyValues().add("messageConverters", converters);
+			wac.registerBeanDefinition("handlerAdapter", beanDef);
+
+			beanDef = new RootBeanDefinition(ExceptionHandlerExceptionResolver.class);
+			beanDef.getPropertyValues().add("messageConverters", converters);
+			wac.registerBeanDefinition("requestMappingResolver", beanDef);
+
+		}, ProducesController.class);
 
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/something");
 		request.addHeader("Accept", "text/html");
@@ -1152,6 +1198,15 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		response = new MockHttpServletResponse();
 		getServlet().service(request, response);
 		assertEquals(406, response.getStatus());
+
+		// SPR-16318
+		request = new MockHttpServletRequest("GET", "/something");
+		request.addHeader("Accept", "text/csv,application/problem+json");
+		response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals(500, response.getStatus());
+		assertEquals("application/problem+json;charset=UTF-8", response.getContentType());
+		assertEquals("{\"reason\":\"error\"}", response.getContentAsString());
 	}
 
 	@Test
@@ -1776,7 +1831,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		getServlet().service(request, response);
 
 		assertEquals(200, response.getStatus());
-		assertEquals("GET,HEAD", response.getHeader("Allow"));
+		assertEquals("GET,HEAD,OPTIONS", response.getHeader("Allow"));
 		assertTrue(response.getContentAsByteArray().length == 0);
 	}
 
@@ -1839,7 +1894,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		request.addParameter("param1", "value1");
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		getServlet().service(request, response);
-		assertEquals("value1-null-null", response.getContentAsString());
+		assertEquals("1:value1-null-null", response.getContentAsString());
 	}
 
 	@Test
@@ -1851,7 +1906,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		request.addParameter("param2", "x");
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		getServlet().service(request, response);
-		assertEquals("value1-x-null", response.getContentAsString());
+		assertEquals("1:value1-x-null", response.getContentAsString());
 	}
 
 	@Test
@@ -1860,10 +1915,21 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/bind");
 		request.addParameter("param2", "true");
-		request.addParameter("param3", "3");
+		request.addParameter("param3", "0");
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		getServlet().service(request, response);
-		assertEquals("null-true-3", response.getContentAsString());
+		assertEquals("1:null-true-0", response.getContentAsString());
+	}
+
+	@Test
+	public void dataClassBindingWithValidationErrorAndConversionError() throws Exception {
+		initServletWithControllers(ValidatedDataClassController.class);
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/bind");
+		request.addParameter("param2", "x");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals("2:null-x-null", response.getContentAsString());
 	}
 
 	@Test
@@ -1939,6 +2005,17 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		getServlet().service(request, response);
 		assertEquals("value1-false-0", response.getContentAsString());
+	}
+
+	@Test
+	public void dataClassBindingWithLocalDate() throws Exception {
+		initServletWithControllers(DateClassController.class);
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/bind");
+		request.addParameter("date", "2010-01-01");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		getServlet().service(request, response);
+		assertEquals("2010-01-01", response.getContentAsString());
 	}
 
 
@@ -2678,6 +2755,26 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		}
 	}
 
+	@Controller
+	// @RequestMapping intentionally omitted
+	static class UnmappedPathController {
+
+		@GetMapping // path intentionally omitted
+		public void get(Writer writer) throws IOException {
+			writer.write("get");
+		}
+	}
+
+	@Controller
+	// @RequestMapping intentionally omitted
+	static class ExplicitAndEmptyPathsController {
+
+		@GetMapping({"/", ""})
+		public void get(Writer writer) throws IOException {
+			writer.write("get");
+		}
+	}
+
 	@Target({ElementType.TYPE})
 	@Retention(RetentionPolicy.RUNTIME)
 	@Controller
@@ -2891,14 +2988,12 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		}
 
 		@Override
-		public Object read(Class<?> clazz, HttpInputMessage inputMessage)
-				throws IOException, HttpMessageNotReadableException {
-			throw new HttpMessageNotReadableException("Could not read");
+		public Object read(Class<?> clazz, HttpInputMessage inputMessage) {
+			throw new HttpMessageNotReadableException("Could not read", inputMessage);
 		}
 
 		@Override
-		public void write(Object o, @Nullable MediaType contentType, HttpOutputMessage outputMessage)
-				throws IOException, HttpMessageNotWritableException {
+		public void write(Object o, @Nullable MediaType contentType, HttpOutputMessage outputMessage) {
 			throw new UnsupportedOperationException("Not implemented");
 		}
 	}
@@ -3000,14 +3095,24 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 	@Controller
 	public static class ProducesController {
 
-		@RequestMapping(value = "/something", produces = "text/html")
+		@GetMapping(path = "/something", produces = "text/html")
 		public void handleHtml(Writer writer) throws IOException {
 			writer.write("html");
 		}
 
-		@RequestMapping(value = "/something", produces = "application/xml")
+		@GetMapping(path = "/something", produces = "application/xml")
 		public void handleXml(Writer writer) throws IOException {
 			writer.write("xml");
+		}
+
+		@GetMapping(path = "/something", produces = "text/csv")
+		public String handleCsv() {
+			throw new IllegalArgumentException();
+		}
+
+		@ExceptionHandler
+		public ResponseEntity<Map<String, String>> handle(IllegalArgumentException ex) {
+			return ResponseEntity.status(500).body(Collections.singletonMap("reason", "error"));
 		}
 	}
 
@@ -3033,7 +3138,6 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 	public static class MyModelAndViewResolver implements ModelAndViewResolver {
 
 		@Override
-		@SuppressWarnings("rawtypes")
 		public ModelAndView resolveModelAndView(Method handlerMethod, Class<?> handlerType, Object returnValue,
 				ExtendedModelMap implicitModel, NativeWebRequest webRequest) {
 
@@ -3048,7 +3152,6 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 							throws Exception {
 						response.getWriter().write("myValue");
 					}
-
 				});
 			}
 			return UNRESOLVED;
@@ -3143,7 +3246,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		String ARTICLES_PATH = API_V1 + "/articles";
 	}
 
-	public interface ResourceEndpoint<E extends Entity, P extends EntityPredicate> {
+	public interface ResourceEndpoint<E extends Entity, P extends EntityPredicate<?>> {
 
 		Collection<E> find(String pageable, P predicate) throws IOException;
 
@@ -3640,25 +3743,10 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		@RequestMapping("/bind")
 		public BindStatusView handle(@Valid DataClass data, BindingResult result) {
 			if (result.hasErrors()) {
-				return new BindStatusView(result.getFieldValue("param1") + "-" +
+				return new BindStatusView(result.getErrorCount() + ":" + result.getFieldValue("param1") + "-" +
 						result.getFieldValue("param2") + "-" + result.getFieldValue("param3"));
 			}
 			return new BindStatusView(data.param1 + "-" + data.param2 + "-" + data.param3);
-		}
-	}
-
-	@RestController
-	public static class OptionalDataClassController {
-
-		@RequestMapping("/bind")
-		public String handle(Optional<DataClass> optionalData, BindingResult result) {
-			if (result.hasErrors()) {
-				assertNotNull(optionalData);
-				assertFalse(optionalData.isPresent());
-				return result.getFieldValue("param1") + "-" + result.getFieldValue("param2") + "-" +
-						result.getFieldValue("param3");
-			}
-			return optionalData.map(data -> data.param1 + "-" + data.param2 + "-" + data.param3).orElse("");
 		}
 	}
 
@@ -3679,6 +3767,54 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 			rc.getBindStatus("dataClass.param2");
 			rc.getBindStatus("dataClass.param3");
 			response.getWriter().write(this.content);
+		}
+	}
+
+	@RestController
+	public static class OptionalDataClassController {
+
+		@RequestMapping("/bind")
+		public String handle(Optional<DataClass> optionalData, BindingResult result) {
+			if (result.hasErrors()) {
+				assertNotNull(optionalData);
+				assertFalse(optionalData.isPresent());
+				return result.getFieldValue("param1") + "-" + result.getFieldValue("param2") + "-" +
+						result.getFieldValue("param3");
+			}
+			return optionalData.map(data -> data.param1 + "-" + data.param2 + "-" + data.param3).orElse("");
+		}
+	}
+
+	public static class DateClass {
+
+		@DateTimeFormat(pattern = "yyyy-MM-dd")
+		public LocalDate date;
+
+		public DateClass(LocalDate date) {
+			this.date = date;
+		}
+	}
+
+	@RestController
+	public static class DateClassController {
+
+		@InitBinder
+		public void initBinder(WebDataBinder binder) {
+			binder.initDirectFieldAccess();
+			binder.setConversionService(new DefaultFormattingConversionService());
+		}
+
+		@RequestMapping("/bind")
+		public String handle(DateClass data, BindingResult result) {
+			if (result.hasErrors()) {
+				return result.getFieldError().toString();
+			}
+			assertNotNull(data);
+			assertNotNull(data.date);
+			assertEquals(2010, data.date.getYear());
+			assertEquals(1, data.date.getMonthValue());
+			assertEquals(1, data.date.getDayOfMonth());
+			return result.getFieldValue("date").toString();
 		}
 	}
 

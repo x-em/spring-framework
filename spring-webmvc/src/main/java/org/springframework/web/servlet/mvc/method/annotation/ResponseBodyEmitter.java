@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -69,13 +69,13 @@ public class ResponseBodyEmitter {
 	@Nullable
 	private Handler handler;
 
-	/** Store send data before handler is initialized */
+	/** Store send data before handler is initialized. */
 	private final Set<DataWithMediaType> earlySendAttempts = new LinkedHashSet<>(8);
 
-	/** Store complete invocation before handler is initialized */
+	/** Store complete invocation before handler is initialized. */
 	private boolean complete;
 
-	/** Store completeWithError invocation before handler is initialized */
+	/** Store completeWithError invocation before handler is initialized. */
 	@Nullable
 	private Throwable failure;
 

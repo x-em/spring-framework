@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,15 +32,19 @@ import org.springframework.jdbc.support.MetaDataAccessException;
  * @author Thomas Risberg
  * @since 2.5
  */
-public class TableMetaDataProviderFactory {
+public final class TableMetaDataProviderFactory {
 
 	private static final Log logger = LogFactory.getLog(TableMetaDataProviderFactory.class);
 
 
+	private TableMetaDataProviderFactory() {
+	}
+
+
 	/**
-	 * Create a {@link TableMetaDataProvider} based on the database metadata.
-	 * @param dataSource used to retrieve metadata
-	 * @param context the class that holds configuration and metadata
+	 * Create a {@link TableMetaDataProvider} based on the database meta-data.
+	 * @param dataSource used to retrieve meta-data
+	 * @param context the class that holds configuration and meta-data
 	 * @return instance of the TableMetaDataProvider implementation to be used
 	 */
 	public static TableMetaDataProvider createMetaDataProvider(DataSource dataSource, TableMetaDataContext context) {
@@ -80,7 +84,7 @@ public class TableMetaDataProviderFactory {
 			});
 		}
 		catch (MetaDataAccessException ex) {
-			throw new DataAccessResourceFailureException("Error retrieving database metadata", ex);
+			throw new DataAccessResourceFailureException("Error retrieving database meta-data", ex);
 		}
 	}
 

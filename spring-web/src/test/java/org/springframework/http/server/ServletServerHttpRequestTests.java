@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -59,7 +59,8 @@ public class ServletServerHttpRequestTests {
 
 	@Test
 	public void getUriForSimplePath() throws URISyntaxException {
-		URI uri = new URI("http://example.com/path");
+		URI uri = new URI("https://example.com/path");
+		mockRequest.setScheme(uri.getScheme());
 		mockRequest.setServerName(uri.getHost());
 		mockRequest.setServerPort(uri.getPort());
 		mockRequest.setRequestURI(uri.getPath());
@@ -69,7 +70,8 @@ public class ServletServerHttpRequestTests {
 
 	@Test
 	public void getUriWithQueryString() throws URISyntaxException {
-		URI uri = new URI("http://example.com/path?query");
+		URI uri = new URI("https://example.com/path?query");
+		mockRequest.setScheme(uri.getScheme());
 		mockRequest.setServerName(uri.getHost());
 		mockRequest.setServerPort(uri.getPort());
 		mockRequest.setRequestURI(uri.getPath());
@@ -95,14 +97,14 @@ public class ServletServerHttpRequestTests {
 
 	@Test  // SPR-13876
 	public void getUriWithEncoding() throws URISyntaxException {
-        URI uri = new URI("https://example.com/%E4%B8%AD%E6%96%87" +
+		URI uri = new URI("https://example.com/%E4%B8%AD%E6%96%87" +
 				"?redirect=https%3A%2F%2Fgithub.com%2Fspring-projects%2Fspring-framework");
-        mockRequest.setScheme(uri.getScheme());
-        mockRequest.setServerName(uri.getHost());
-        mockRequest.setServerPort(uri.getPort());
-        mockRequest.setRequestURI(uri.getRawPath());
-        mockRequest.setQueryString(uri.getRawQuery());
-        assertEquals(uri, request.getURI());
+		mockRequest.setScheme(uri.getScheme());
+		mockRequest.setServerName(uri.getHost());
+		mockRequest.setServerPort(uri.getPort());
+		mockRequest.setRequestURI(uri.getRawPath());
+		mockRequest.setQueryString(uri.getRawQuery());
+		assertEquals(uri, request.getURI());
     }
 
 	@Test

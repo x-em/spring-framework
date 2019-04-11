@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,7 +46,7 @@ import org.springframework.util.StringUtils;
  * @author Juergen Hoeller
  * @author Rossen Stoyanchev
  * @since 3.0
- * @see <a href="http://www.ietf.org/rfc/rfc3986.txt">RFC 3986</a>
+ * @see <a href="https://www.ietf.org/rfc/rfc3986.txt">RFC 3986</a>
  */
 public abstract class UriUtils {
 
@@ -263,7 +263,7 @@ public abstract class UriUtils {
 
 
 	/**
-	 * Variant of {@link #decode(String, Charset)} with a String charset.
+	 * Variant of {@link #encode(String, Charset)} with a String charset.
 	 * @param source the String to be encoded
 	 * @param encoding the character encoding to encode to
 	 * @return the encoded String

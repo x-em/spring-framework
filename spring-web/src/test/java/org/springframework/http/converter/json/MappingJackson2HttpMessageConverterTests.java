@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -392,39 +392,6 @@ public class MappingJackson2HttpMessageConverterTests {
 		String result = outputMessage.getBodyAsString(StandardCharsets.UTF_8);
 		assertThat(result, containsString("\"property1\":\"value\""));
 		assertThat(result, not(containsString("\"property2\":\"value\"")));
-	}
-
-	@Test
-	public void jsonp() throws Exception {
-		MappingJacksonValue jacksonValue = new MappingJacksonValue("foo");
-		jacksonValue.setSerializationView(MyJacksonView1.class);
-		jacksonValue.setJsonpFunction("callback");
-
-		MockHttpOutputMessage outputMessage = new MockHttpOutputMessage();
-		this.converter.writeInternal(jacksonValue, null, outputMessage);
-
-		assertEquals("/**/callback(\"foo\");", outputMessage.getBodyAsString(StandardCharsets.UTF_8));
-	}
-
-	@Test
-	public void jsonpAndJsonView() throws Exception {
-		MockHttpOutputMessage outputMessage = new MockHttpOutputMessage();
-		JacksonViewBean bean = new JacksonViewBean();
-		bean.setWithView1("with");
-		bean.setWithView2("with");
-		bean.setWithoutView("without");
-
-		MappingJacksonValue jacksonValue = new MappingJacksonValue(bean);
-		jacksonValue.setSerializationView(MyJacksonView1.class);
-		jacksonValue.setJsonpFunction("callback");
-		this.converter.writeInternal(jacksonValue, null, outputMessage);
-
-		String result = outputMessage.getBodyAsString(StandardCharsets.UTF_8);
-		assertThat(result, startsWith("/**/callback("));
-		assertThat(result, endsWith(");"));
-		assertThat(result, containsString("\"withView1\":\"with\""));
-		assertThat(result, not(containsString("\"withView2\":\"with\"")));
-		assertThat(result, not(containsString("\"withoutView\":\"without\"")));
 	}
 
 	@Test  // SPR-13318

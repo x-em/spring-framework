@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,10 +44,10 @@ import org.springframework.util.Assert;
  */
 public class PreparedStatementCreatorFactory {
 
-	/** The SQL, which won't change when the parameters change */
+	/** The SQL, which won't change when the parameters change. */
 	private final String sql;
 
-	/** List of SqlParameter objects (may not be {@code null}) */
+	/** List of SqlParameter objects (may not be {@code null}). */
 	private final List<SqlParameter> declaredParameters;
 
 	private int resultSetType = ResultSet.TYPE_FORWARD_ONLY;
@@ -90,6 +90,14 @@ public class PreparedStatementCreatorFactory {
 		this.declaredParameters = declaredParameters;
 	}
 
+
+	/**
+	 * Return the SQL statement to execute.
+	 * @since 5.1.3
+	 */
+	public final String getSql() {
+		return this.sql;
+	}
 
 	/**
 	 * Add a new declared parameter.
@@ -196,7 +204,7 @@ public class PreparedStatementCreatorFactory {
 			Assert.notNull(parameters, "Parameters List must not be null");
 			this.parameters = parameters;
 			if (this.parameters.size() != declaredParameters.size()) {
-				// account for named parameters being used multiple times
+				// Account for named parameters being used multiple times
 				Set<String> names = new HashSet<>();
 				for (int i = 0; i < parameters.size(); i++) {
 					Object param = parameters.get(i);
@@ -244,7 +252,7 @@ public class PreparedStatementCreatorFactory {
 			for (int i = 0; i < this.parameters.size(); i++) {
 				Object in = this.parameters.get(i);
 				SqlParameter declaredParameter;
-				// SqlParameterValue overrides declared parameter metadata, in particular for
+				// SqlParameterValue overrides declared parameter meta-data, in particular for
 				// independence from the declared parameter position in case of named parameters.
 				if (in instanceof SqlParameterValue) {
 					SqlParameterValue paramValue = (SqlParameterValue) in;

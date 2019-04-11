@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,7 +21,7 @@ import java.sql.SQLException;
 
 /**
  * The Derby specific implementation of {@link TableMetaDataProvider}.
- * Overrides the Derby metadata info regarding retrieving generated keys.
+ * Overrides the Derby meta-data info regarding retrieving generated keys.
  *
  * @author Thomas Risberg
  * @since 3.0
@@ -40,8 +40,8 @@ public class DerbyTableMetaDataProvider extends GenericTableMetaDataProvider {
 	public void initializeWithMetaData(DatabaseMetaData databaseMetaData) throws SQLException {
 		super.initializeWithMetaData(databaseMetaData);
 		if (!databaseMetaData.supportsGetGeneratedKeys()) {
-			if (logger.isWarnEnabled()) {
-				logger.warn("Overriding supportsGetGeneratedKeys from DatabaseMetaData to 'true'; it was reported as " +
+			if (logger.isInfoEnabled()) {
+				logger.info("Overriding supportsGetGeneratedKeys from DatabaseMetaData to 'true'; it was reported as " +
 						"'false' by " + databaseMetaData.getDriverName() + " " + databaseMetaData.getDriverVersion());
 			}
 			this.supportsGeneratedKeysOverride = true;

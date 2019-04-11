@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -120,7 +120,7 @@ class ConditionEvaluator {
 		return (List<String[]>) (values != null ? values : Collections.emptyList());
 	}
 
-	private Condition getCondition(String conditionClassName, ClassLoader classloader) {
+	private Condition getCondition(String conditionClassName, @Nullable ClassLoader classloader) {
 		Class<?> conditionClass = ClassUtils.resolveClassName(conditionClassName, classloader);
 		return (Condition) BeanUtils.instantiateClass(conditionClass);
 	}
@@ -202,8 +202,8 @@ class ConditionEvaluator {
 		}
 
 		@Override
+		@Nullable
 		public ConfigurableListableBeanFactory getBeanFactory() {
-			Assert.state(this.beanFactory != null, "No ConfigurableListableBeanFactory available");
 			return this.beanFactory;
 		}
 
@@ -218,8 +218,8 @@ class ConditionEvaluator {
 		}
 
 		@Override
+		@Nullable
 		public ClassLoader getClassLoader() {
-			Assert.state(this.classLoader != null, "No ClassLoader available");
 			return this.classLoader;
 		}
 	}

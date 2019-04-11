@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -111,29 +111,30 @@ public abstract class NamedParameterUtils {
 			char c = statement[i];
 			if (c == ':' || c == '&') {
 				int j = i + 1;
-				if (j < statement.length && statement[j] == ':' && c == ':') {
+				if (c == ':' && j < statement.length && statement[j] == ':') {
 					// Postgres-style "::" casting operator should be skipped
 					i = i + 2;
 					continue;
 				}
 				String parameter = null;
-				if (j < statement.length && c == ':' && statement[j] == '{') {
+				if (c == ':' && j < statement.length && statement[j] == '{') {
 					// :{x} style parameter
-					while (j < statement.length && '}' != statement[j]) {
+					while (statement[j] != '}') {
 						j++;
-						if (':' == statement[j] || '{' == statement[j]) {
+						if (j >= statement.length) {
+							throw new InvalidDataAccessApiUsageException("Non-terminated named parameter declaration " +
+									"at position " + i + " in statement: " + sql);
+						}
+						if (statement[j] == ':' || statement[j] == '{') {
 							throw new InvalidDataAccessApiUsageException("Parameter name contains invalid character '" +
 									statement[j] + "' at position " + i + " in statement: " + sql);
 						}
 					}
-					if (j >= statement.length) {
-						throw new InvalidDataAccessApiUsageException(
-								"Non-terminated named parameter declaration at position " + i + " in statement: " + sql);
-					}
-					if (j - i > 3) {
+					if (j - i > 2) {
 						parameter = sql.substring(i + 2, j);
 						namedParameterCount = addNewNamedParameter(namedParameters, namedParameterCount, parameter);
-						totalParameterCount = addNamedParameter(parameterList, totalParameterCount, escapes, i, j + 1, parameter);
+						totalParameterCount = addNamedParameter(
+								parameterList, totalParameterCount, escapes, i, j + 1, parameter);
 					}
 					j++;
 				}
@@ -144,7 +145,8 @@ public abstract class NamedParameterUtils {
 					if (j - i > 1) {
 						parameter = sql.substring(i + 1, j);
 						namedParameterCount = addNewNamedParameter(namedParameters, namedParameterCount, parameter);
-						totalParameterCount = addNamedParameter(parameterList, totalParameterCount, escapes, i, j, parameter);
+						totalParameterCount = addNamedParameter(
+								parameterList, totalParameterCount, escapes, i, j, parameter);
 					}
 				}
 				i = j - 1;
@@ -200,7 +202,7 @@ public abstract class NamedParameterUtils {
 	}
 
 	/**
-	 * Skip over comments and quoted names present in an SQL statement
+	 * Skip over comments and quoted names present in an SQL statement.
 	 * @param statement character array containing SQL statement
 	 * @param position current position of statement
 	 * @return next position to process after any comments or quotes are skipped

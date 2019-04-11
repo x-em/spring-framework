@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@
 package org.springframework.web.server.adapter;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -36,10 +37,8 @@ import org.springframework.web.server.WebExceptionHandler;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebHandler;
 
-import static java.time.Duration.ofMillis;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static java.time.Duration.*;
+import static org.junit.Assert.*;
 
 /**
  * Unit tests for {@link WebHttpHandlerBuilder}.
@@ -48,13 +47,12 @@ import static org.junit.Assert.assertTrue;
 public class WebHttpHandlerBuilderTests {
 
 	@Test  // SPR-15074
-	public void orderedWebFilterBeans() throws Exception {
+	public void orderedWebFilterBeans() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 		context.register(OrderedWebFilterBeanConfig.class);
 		context.refresh();
 
 		HttpHandler httpHandler = WebHttpHandlerBuilder.applicationContext(context).build();
-
 		assertTrue(httpHandler instanceof HttpWebHandlerAdapter);
 		assertSame(context, ((HttpWebHandlerAdapter) httpHandler).getApplicationContext());
 
@@ -65,14 +63,24 @@ public class WebHttpHandlerBuilderTests {
 		assertEquals("FilterB::FilterA", response.getBodyAsString().block(ofMillis(5000)));
 	}
 
+	@Test
+	public void forwardedHeaderFilter() {
+		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+		context.register(ForwardedHeaderFilterConfig.class);
+		context.refresh();
+
+		WebHttpHandlerBuilder builder = WebHttpHandlerBuilder.applicationContext(context);
+		builder.filters(filters -> assertEquals(Collections.emptyList(), filters));
+		assertTrue(builder.hasForwardedHeaderTransformer());
+	}
+
 	@Test  // SPR-15074
-	public void orderedWebExceptionHandlerBeans() throws Exception {
+	public void orderedWebExceptionHandlerBeans() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 		context.register(OrderedExceptionHandlerBeanConfig.class);
 		context.refresh();
 
 		HttpHandler httpHandler = WebHttpHandlerBuilder.applicationContext(context).build();
-
 		MockServerHttpRequest request = MockServerHttpRequest.get("/").build();
 		MockServerHttpResponse response = new MockServerHttpResponse();
 		httpHandler.handle(request, response).block(ofMillis(5000));
@@ -81,18 +89,28 @@ public class WebHttpHandlerBuilderTests {
 	}
 
 	@Test
-	public void configWithoutFilters() throws Exception {
+	public void configWithoutFilters() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 		context.register(NoFilterConfig.class);
 		context.refresh();
 
 		HttpHandler httpHandler = WebHttpHandlerBuilder.applicationContext(context).build();
-
 		MockServerHttpRequest request = MockServerHttpRequest.get("/").build();
 		MockServerHttpResponse response = new MockServerHttpResponse();
 		httpHandler.handle(request, response).block(ofMillis(5000));
 
 		assertEquals("handled", response.getBodyAsString().block(ofMillis(5000)));
+	}
+
+	@Test  // SPR-16972
+	public void cloneWithApplicationContext() {
+		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+		context.register(NoFilterConfig.class);
+		context.refresh();
+
+		WebHttpHandlerBuilder builder = WebHttpHandlerBuilder.applicationContext(context);
+		assertSame(context, ((HttpWebHandlerAdapter) builder.build()).getApplicationContext());
+		assertSame(context, ((HttpWebHandlerAdapter) builder.clone().build()).getApplicationContext());
 	}
 
 
@@ -160,6 +178,21 @@ public class WebHttpHandlerBuilderTests {
 		}
 	}
 
+	@Configuration
+	@SuppressWarnings("unused")
+	static class ForwardedHeaderFilterConfig {
+
+		@Bean
+		@SuppressWarnings("deprecation")
+		public WebFilter forwardedHeaderFilter() {
+			return new org.springframework.web.filter.reactive.ForwardedHeaderFilter();
+		}
+
+		@Bean
+		public WebHandler webHandler() {
+			return exchange -> Mono.error(new Exception());
+		}
+	}
 
 	@Configuration
 	@SuppressWarnings("unused")

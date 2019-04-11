@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -209,16 +209,16 @@ public class AnnotationConfigWebApplicationContext extends AbstractRefreshableWe
 		}
 
 		if (!this.annotatedClasses.isEmpty()) {
-			if (logger.isInfoEnabled()) {
-				logger.info("Registering annotated classes: [" +
+			if (logger.isDebugEnabled()) {
+				logger.debug("Registering annotated classes: [" +
 						StringUtils.collectionToCommaDelimitedString(this.annotatedClasses) + "]");
 			}
 			reader.register(ClassUtils.toClassArray(this.annotatedClasses));
 		}
 
 		if (!this.basePackages.isEmpty()) {
-			if (logger.isInfoEnabled()) {
-				logger.info("Scanning base packages: [" +
+			if (logger.isDebugEnabled()) {
+				logger.debug("Scanning base packages: [" +
 						StringUtils.collectionToCommaDelimitedString(this.basePackages) + "]");
 			}
 			scanner.scan(StringUtils.toStringArray(this.basePackages));
@@ -229,24 +229,19 @@ public class AnnotationConfigWebApplicationContext extends AbstractRefreshableWe
 			for (String configLocation : configLocations) {
 				try {
 					Class<?> clazz = ClassUtils.forName(configLocation, getClassLoader());
-					if (logger.isInfoEnabled()) {
-						logger.info("Successfully resolved class for [" + configLocation + "]");
+					if (logger.isTraceEnabled()) {
+						logger.trace("Registering [" + configLocation + "]");
 					}
 					reader.register(clazz);
 				}
 				catch (ClassNotFoundException ex) {
-					if (logger.isDebugEnabled()) {
-						logger.debug("Could not load class for config location [" + configLocation +
+					if (logger.isTraceEnabled()) {
+						logger.trace("Could not load class for config location [" + configLocation +
 								"] - trying package scan. " + ex);
 					}
 					int count = scanner.scan(configLocation);
-					if (logger.isInfoEnabled()) {
-						if (count == 0) {
-							logger.info("No annotated classes found for specified class/package [" + configLocation + "]");
-						}
-						else {
-							logger.info("Found " + count + " annotated classes in package [" + configLocation + "]");
-						}
+					if (count == 0 && logger.isDebugEnabled()) {
+						logger.debug("No annotated classes found for specified class/package [" + configLocation + "]");
 					}
 				}
 			}

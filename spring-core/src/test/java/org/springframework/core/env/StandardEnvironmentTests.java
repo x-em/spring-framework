@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +38,7 @@ import static org.springframework.core.env.AbstractEnvironment.*;
  * @author Chris Beams
  * @author Juergen Hoeller
  */
+@SuppressWarnings("deprecation")
 public class StandardEnvironmentTests {
 
 	private static final String ALLOWED_PROPERTY_NAME = "theanswer";
@@ -51,7 +52,8 @@ public class StandardEnvironmentTests {
 	private static final Object NON_STRING_PROPERTY_NAME = new Object();
 	private static final Object NON_STRING_PROPERTY_VALUE = new Object();
 
-	private ConfigurableEnvironment environment = new StandardEnvironment();
+	private final ConfigurableEnvironment environment = new StandardEnvironment();
+
 
 	@Test
 	public void merge() {
@@ -131,12 +133,12 @@ public class StandardEnvironmentTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void setActiveProfiles_withNullProfileArray() {
-		environment.setActiveProfiles((String[])null);
+		environment.setActiveProfiles((String[]) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void setActiveProfiles_withNullProfile() {
-		environment.setActiveProfiles((String)null);
+		environment.setActiveProfiles((String) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
@@ -151,12 +153,12 @@ public class StandardEnvironmentTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void setDefaultProfiles_withNullProfileArray() {
-		environment.setDefaultProfiles((String[])null);
+		environment.setDefaultProfiles((String[]) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void setDefaultProfiles_withNullProfile() {
-		environment.setDefaultProfiles((String)null);
+		environment.setDefaultProfiles((String) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
@@ -270,19 +272,18 @@ public class StandardEnvironmentTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void acceptsProfiles_withNullArgumentList() {
-		environment.acceptsProfiles((String[])null);
+		environment.acceptsProfiles((String[]) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void acceptsProfiles_withNullArgument() {
-		environment.acceptsProfiles((String)null);
+		environment.acceptsProfiles((String) null);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void acceptsProfiles_withEmptyArgument() {
 		environment.acceptsProfiles("");
 	}
-
 
 	@Test
 	public void acceptsProfiles_activeProfileSetProgrammatically() {
@@ -324,6 +325,15 @@ public class StandardEnvironmentTests {
 	@Test(expected = IllegalArgumentException.class)
 	public void acceptsProfiles_withInvalidNotOperator() {
 		environment.acceptsProfiles("p1", "!");
+	}
+
+	@Test
+	public void acceptsProfiles_withProfileExpression() {
+		assertThat(environment.acceptsProfiles(Profiles.of("p1 & p2")), is(false));
+		environment.addActiveProfile("p1");
+		assertThat(environment.acceptsProfiles(Profiles.of("p1 & p2")), is(false));
+		environment.addActiveProfile("p2");
+		assertThat(environment.acceptsProfiles(Profiles.of("p1 & p2")), is(true));
 	}
 
 	@Test
@@ -395,12 +405,12 @@ public class StandardEnvironmentTests {
 		SecurityManager securityManager = new SecurityManager() {
 			@Override
 			public void checkPropertiesAccess() {
-				// see http://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getProperties()
+				// see https://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getProperties()
 				throw new AccessControlException("Accessing the system properties is disallowed");
 			}
 			@Override
 			public void checkPropertyAccess(String key) {
-				// see http://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getProperty(java.lang.String)
+				// see https://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getProperty(java.lang.String)
 				if (DISALLOWED_PROPERTY_NAME.equals(key)) {
 					throw new AccessControlException(
 							String.format("Accessing the system property [%s] is disallowed", DISALLOWED_PROPERTY_NAME));
@@ -462,11 +472,11 @@ public class StandardEnvironmentTests {
 		SecurityManager securityManager = new SecurityManager() {
 			@Override
 			public void checkPermission(Permission perm) {
-				//see http://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getenv()
+				//see https://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getenv()
 				if ("getenv.*".equals(perm.getName())) {
 					throw new AccessControlException("Accessing the system environment is disallowed");
 				}
-				//see http://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getenv(java.lang.String)
+				//see https://download.oracle.com/javase/1.5.0/docs/api/java/lang/System.html#getenv(java.lang.String)
 				if (("getenv."+DISALLOWED_PROPERTY_NAME).equals(perm.getName())) {
 					throw new AccessControlException(
 							String.format("Accessing the system environment variable [%s] is disallowed", DISALLOWED_PROPERTY_NAME));
@@ -487,6 +497,7 @@ public class StandardEnvironmentTests {
 		getModifiableSystemEnvironment().remove(ALLOWED_PROPERTY_NAME);
 		getModifiableSystemEnvironment().remove(DISALLOWED_PROPERTY_NAME);
 	}
+
 
 	@SuppressWarnings("unchecked")
 	public static Map<String, String> getModifiableSystemEnvironment() {

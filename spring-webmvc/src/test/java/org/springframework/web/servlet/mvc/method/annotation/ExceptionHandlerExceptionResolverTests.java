@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -93,7 +93,6 @@ public class ExceptionHandlerExceptionResolverTests {
 	}
 
 
-	@SuppressWarnings("ConstantConditions")
 	@Test
 	public void nullHandler() {
 		Object handler = null;
@@ -103,7 +102,7 @@ public class ExceptionHandlerExceptionResolverTests {
 	}
 
 	@Test
-	public void setCustomArgumentResolvers() throws Exception {
+	public void setCustomArgumentResolvers() {
 		HandlerMethodArgumentResolver resolver = new ServletRequestMethodArgumentResolver();
 		this.resolver.setCustomArgumentResolvers(Collections.singletonList(resolver));
 		this.resolver.afterPropertiesSet();
@@ -113,7 +112,7 @@ public class ExceptionHandlerExceptionResolverTests {
 	}
 
 	@Test
-	public void setArgumentResolvers() throws Exception {
+	public void setArgumentResolvers() {
 		HandlerMethodArgumentResolver resolver = new ServletRequestMethodArgumentResolver();
 		this.resolver.setArgumentResolvers(Collections.singletonList(resolver));
 		this.resolver.afterPropertiesSet();

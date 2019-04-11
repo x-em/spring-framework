@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -112,12 +112,11 @@ public class SessionAttributesHandler {
 	 * @param attributes candidate attributes for session storage
 	 */
 	public void storeAttributes(WebRequest request, Map<String, ?> attributes) {
-		for (String name : attributes.keySet()) {
-			Object value = attributes.get(name);
+		attributes.forEach((name, value) -> {
 			if (value != null && isHandlerSessionAttribute(name, value.getClass())) {
 				this.sessionAttributeStore.storeAttribute(request, name, value);
 			}
-		}
+		});
 	}
 
 	/**

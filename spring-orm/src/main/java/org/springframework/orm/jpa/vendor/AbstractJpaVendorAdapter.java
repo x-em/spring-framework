@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,7 +48,7 @@ public abstract class AbstractJpaVendorAdapter implements JpaVendorAdapter {
 
 	/**
 	 * Specify the target database to operate on, as a value of the {@code Database} enum:
-	 * DB2, DERBY, H2, HSQL, INFORMIX, MYSQL, ORACLE, POSTGRESQL, SQL_SERVER, SYBASE
+	 * DB2, DERBY, H2, HANA, HSQL, INFORMIX, MYSQL, ORACLE, POSTGRESQL, SQL_SERVER, SYBASE
 	 * <p><b>NOTE:</b> This setting will override your JPA provider's default algorithm.
 	 * Custom vendor properties may still fine-tune the database dialect. However,
 	 * there may nevertheless be conflicts: For example, specify either this setting

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -104,7 +104,7 @@ public class BooleanExpressionTests extends AbstractExpressionTests {
 				return targetType.getType() == Boolean.class ? false : null;
 			}
 		};
-		eContext.setTypeConverter(new StandardTypeConverter(conversionService));
+		context.setTypeConverter(new StandardTypeConverter(conversionService));
 
 		evaluate("null or true", Boolean.TRUE, Boolean.class, false);
 		evaluate("null and true", Boolean.FALSE, Boolean.class, false);

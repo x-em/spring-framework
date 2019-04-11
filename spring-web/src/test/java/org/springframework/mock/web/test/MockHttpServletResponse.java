@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedCaseInsensitiveMap;
 import org.springframework.util.StringUtils;
@@ -53,6 +54,7 @@ import org.springframework.web.util.WebUtils;
  * @author Juergen Hoeller
  * @author Rod Johnson
  * @author Brian Clozel
+ * @author Vedran Pavic
  * @since 1.0.2
  */
 public class MockHttpServletResponse implements HttpServletResponse {
@@ -72,6 +74,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	private boolean writerAccessAllowed = true;
 
+	@Nullable
 	private String characterEncoding = WebUtils.DEFAULT_CHARACTER_ENCODING;
 
 	private boolean charset = false;
@@ -80,10 +83,12 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	private final ServletOutputStream outputStream = new ResponseServletOutputStream(this.content);
 
+	@Nullable
 	private PrintWriter writer;
 
 	private long contentLength = 0;
 
+	@Nullable
 	private String contentType;
 
 	private int bufferSize = 4096;
@@ -103,8 +108,10 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	private int status = HttpServletResponse.SC_OK;
 
+	@Nullable
 	private String errorMessage;
 
+	@Nullable
 	private String forwardedUrl;
 
 	private final List<String> includedUrls = new ArrayList<>();
@@ -161,15 +168,16 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	private void updateContentTypeHeader() {
 		if (this.contentType != null) {
-			StringBuilder sb = new StringBuilder(this.contentType);
-			if (!this.contentType.toLowerCase().contains(CHARSET_PREFIX) && this.charset) {
-				sb.append(";").append(CHARSET_PREFIX).append(this.characterEncoding);
+			String value = this.contentType;
+			if (this.charset && !this.contentType.toLowerCase().contains(CHARSET_PREFIX)) {
+				value = value + ';' + CHARSET_PREFIX + this.characterEncoding;
 			}
-			doAddHeaderValue(HttpHeaders.CONTENT_TYPE, sb.toString(), true);
+			doAddHeaderValue(HttpHeaders.CONTENT_TYPE, value, true);
 		}
 	}
 
 	@Override
+	@Nullable
 	public String getCharacterEncoding() {
 		return this.characterEncoding;
 	}
@@ -185,7 +193,8 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		Assert.state(this.writerAccessAllowed, "Writer access not allowed");
 		if (this.writer == null) {
 			Writer targetWriter = (this.characterEncoding != null ?
-					new OutputStreamWriter(this.content, this.characterEncoding) : new OutputStreamWriter(this.content));
+					new OutputStreamWriter(this.content, this.characterEncoding) :
+					new OutputStreamWriter(this.content));
 			this.writer = new ResponsePrintWriter(targetWriter);
 		}
 		return this.writer;
@@ -221,7 +230,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	}
 
 	@Override
-	public void setContentType(String contentType) {
+	public void setContentType(@Nullable String contentType) {
 		this.contentType = contentType;
 		if (contentType != null) {
 			try {
@@ -244,6 +253,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	}
 
 	@Override
+	@Nullable
 	public String getContentType() {
 		return this.contentType;
 	}
@@ -345,6 +355,12 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		if (cookie.isHttpOnly()) {
 			buf.append("; HttpOnly");
 		}
+		if (cookie instanceof MockCookie) {
+			MockCookie mockCookie = (MockCookie) cookie;
+			if (StringUtils.hasText(mockCookie.getSameSite())) {
+				buf.append("; SameSite=").append(mockCookie.getSameSite());
+			}
+		}
 		return buf.toString();
 	}
 
@@ -352,6 +368,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		return this.cookies.toArray(new Cookie[0]);
 	}
 
+	@Nullable
 	public Cookie getCookie(String name) {
 		Assert.notNull(name, "Cookie name must not be null");
 		for (Cookie cookie : this.cookies) {
@@ -387,6 +404,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	 * @return the associated header value, or {@code null} if none
 	 */
 	@Override
+	@Nullable
 	public String getHeader(String name) {
 		HeaderValueHolder header = HeaderValueHolder.getByName(this.headers, name);
 		return (header != null ? header.getStringValue() : null);
@@ -417,6 +435,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	 * @param name the name of the header
 	 * @return the associated header value, or {@code null} if none
 	 */
+	@Nullable
 	public Object getHeaderValue(String name) {
 		HeaderValueHolder header = HeaderValueHolder.getByName(this.headers, name);
 		return (header != null ? header.getValue() : null);
@@ -495,6 +514,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		setCommitted(true);
 	}
 
+	@Nullable
 	public String getRedirectedUrl() {
 		return getHeader(HttpHeaders.LOCATION);
 	}
@@ -581,7 +601,12 @@ public class MockHttpServletResponse implements HttpServletResponse {
 			HttpHeaders headers = new HttpHeaders();
 			headers.add(HttpHeaders.CONTENT_LANGUAGE, value.toString());
 			Locale language = headers.getContentLanguage();
-			this.locale = language != null ? language : Locale.getDefault();
+			setLocale(language != null ? language : Locale.getDefault());
+			return true;
+		}
+		else if (HttpHeaders.SET_COOKIE.equalsIgnoreCase(name)) {
+			MockCookie cookie = MockCookie.parse(value.toString());
+			addCookie(cookie);
 			return true;
 		}
 		else {
@@ -625,6 +650,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		return this.status;
 	}
 
+	@Nullable
 	public String getErrorMessage() {
 		return this.errorMessage;
 	}
@@ -634,21 +660,23 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	// Methods for MockRequestDispatcher
 	//---------------------------------------------------------------------
 
-	public void setForwardedUrl(String forwardedUrl) {
+	public void setForwardedUrl(@Nullable String forwardedUrl) {
 		this.forwardedUrl = forwardedUrl;
 	}
 
+	@Nullable
 	public String getForwardedUrl() {
 		return this.forwardedUrl;
 	}
 
-	public void setIncludedUrl(String includedUrl) {
+	public void setIncludedUrl(@Nullable String includedUrl) {
 		this.includedUrls.clear();
 		if (includedUrl != null) {
 			this.includedUrls.add(includedUrl);
 		}
 	}
 
+	@Nullable
 	public String getIncludedUrl() {
 		int count = this.includedUrls.size();
 		Assert.state(count <= 1,
@@ -702,7 +730,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		}
 
 		@Override
-		public void write(char buf[], int off, int len) {
+		public void write(char[] buf, int off, int len) {
 			super.write(buf, off, len);
 			super.flush();
 			setCommittedIfBufferSizeExceeded();
@@ -725,6 +753,13 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		@Override
 		public void flush() {
 			super.flush();
+			setCommitted(true);
+		}
+
+		@Override
+		public void close() {
+			super.flush();
+			super.close();
 			setCommitted(true);
 		}
 	}

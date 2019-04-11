@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@ package org.springframework.core;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -39,7 +38,11 @@ import org.springframework.util.ReflectionUtils;
  * @author Rossen Stoyanchev
  * @since 4.2.3
  */
-public abstract class MethodIntrospector {
+public final class MethodIntrospector {
+
+	private MethodIntrospector() {
+	}
+
 
 	/**
 	 * Select methods on the given target type based on the lookup of associated metadata.
@@ -58,10 +61,10 @@ public abstract class MethodIntrospector {
 		Class<?> specificHandlerType = null;
 
 		if (!Proxy.isProxyClass(targetType)) {
-			handlerTypes.add(targetType);
-			specificHandlerType = targetType;
+			specificHandlerType = ClassUtils.getUserClass(targetType);
+			handlerTypes.add(specificHandlerType);
 		}
-		Collections.addAll(handlerTypes, targetType.getInterfaces());
+		handlerTypes.addAll(ClassUtils.getAllInterfacesForClassAsSet(targetType));
 
 		for (Class<?> currentHandlerType : handlerTypes) {
 			final Class<?> targetClass = (specificHandlerType != null ? specificHandlerType : currentHandlerType);

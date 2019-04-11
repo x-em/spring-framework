@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,7 @@ import static org.mockito.Mockito.*;
 public class DefaultRenderingResponseTests {
 
 	@Test
-	public void create() throws Exception {
+	public void create() {
 		String name = "foo";
 		Mono<RenderingResponse> result = RenderingResponse.create(name).build();
 		StepVerifier.create(result)
@@ -64,7 +64,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void headers() throws Exception {
+	public void headers() {
 		HttpHeaders headers = new HttpHeaders();
 		Mono<RenderingResponse> result = RenderingResponse.create("foo").headers(headers).build();
 		StepVerifier.create(result)
@@ -75,7 +75,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void modelAttribute() throws Exception {
+	public void modelAttribute() {
 		Mono<RenderingResponse> result = RenderingResponse.create("foo")
 				.modelAttribute("foo", "bar").build();
 		StepVerifier.create(result)
@@ -85,7 +85,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void modelAttributeConventions() throws Exception {
+	public void modelAttributeConventions() {
 		Mono<RenderingResponse> result = RenderingResponse.create("foo")
 				.modelAttribute("bar").build();
 		StepVerifier.create(result)
@@ -95,7 +95,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void modelAttributes() throws Exception {
+	public void modelAttributes() {
 		Map<String, String> model = Collections.singletonMap("foo", "bar");
 		Mono<RenderingResponse> result = RenderingResponse.create("foo")
 				.modelAttributes(model).build();
@@ -106,7 +106,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void modelAttributesConventions() throws Exception {
+	public void modelAttributesConventions() {
 		Set<String> model = Collections.singleton("bar");
 		Mono<RenderingResponse> result = RenderingResponse.create("foo")
 				.modelAttributes(model).build();
@@ -117,7 +117,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void cookies() throws Exception {
+	public void cookies() {
 		MultiValueMap<String, ResponseCookie> newCookies = new LinkedMultiValueMap<>();
 		newCookies.add("name", ResponseCookie.from("name", "value").build());
 		Mono<RenderingResponse> result =
@@ -130,7 +130,7 @@ public class DefaultRenderingResponseTests {
 
 
 	@Test
-	public void render() throws Exception {
+	public void render() {
 		Map<String, Object> model = Collections.singletonMap("foo", "bar");
 		Mono<RenderingResponse> result = RenderingResponse.create("view").modelAttributes(model).build();
 
@@ -154,7 +154,7 @@ public class DefaultRenderingResponseTests {
 	}
 
 	@Test
-	public void defaultContentType() throws Exception {
+	public void defaultContentType() {
 		Mono<RenderingResponse> result = RenderingResponse.create("view").build();
 
 		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("http://localhost"));
@@ -194,7 +194,7 @@ public class DefaultRenderingResponseTests {
 				.build()
 				.block();
 
-		MockServerHttpRequest request = MockServerHttpRequest.get("http://example.com")
+		MockServerHttpRequest request = MockServerHttpRequest.get("https://example.com")
 				.header(HttpHeaders.IF_NONE_MATCH, etag)
 				.build();
 		MockServerWebExchange exchange = MockServerWebExchange.from(request);
@@ -218,7 +218,7 @@ public class DefaultRenderingResponseTests {
 				.build()
 				.block();
 
-		MockServerHttpRequest request = MockServerHttpRequest.get("http://example.com")
+		MockServerHttpRequest request = MockServerHttpRequest.get("https://example.com")
 				.header(HttpHeaders.IF_MODIFIED_SINCE,
 						DateTimeFormatter.RFC_1123_DATE_TIME.format(now))
 				.build();

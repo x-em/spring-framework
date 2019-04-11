@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.springframework.core.convert.ConversionService;
 import org.springframework.format.support.FormattingConversionService;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
@@ -48,7 +47,6 @@ import org.springframework.web.util.UrlPathHelper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
@@ -99,7 +97,9 @@ public class DelegatingWebMvcConfigurationTests {
 	@Test
 	public void requestMappingHandlerAdapter() throws Exception {
 		delegatingConfig.setConfigurers(Collections.singletonList(webMvcConfigurer));
-		RequestMappingHandlerAdapter adapter = this.delegatingConfig.requestMappingHandlerAdapter();
+		RequestMappingHandlerAdapter adapter = this.delegatingConfig.requestMappingHandlerAdapter(
+				this.delegatingConfig.mvcContentNegotiationManager(), this.delegatingConfig.mvcConversionService(),
+				this.delegatingConfig.mvcValidator());
 
 		ConfigurableWebBindingInitializer initializer =
 				(ConfigurableWebBindingInitializer) adapter.getWebBindingInitializer();
@@ -122,7 +122,7 @@ public class DelegatingWebMvcConfigurationTests {
 
 	@Test
 	public void configureMessageConverters() {
-		final HttpMessageConverter customConverter = mock(HttpMessageConverter.class);
+		final HttpMessageConverter<?> customConverter = mock(HttpMessageConverter.class);
 		final StringHttpMessageConverter stringConverter = new StringHttpMessageConverter();
 		List<WebMvcConfigurer> configurers = new ArrayList<>();
 		configurers.add(new WebMvcConfigurer() {
@@ -130,6 +130,7 @@ public class DelegatingWebMvcConfigurationTests {
 			public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
 				converters.add(stringConverter);
 			}
+
 			@Override
 			public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
 				converters.add(0, customConverter);
@@ -138,7 +139,9 @@ public class DelegatingWebMvcConfigurationTests {
 		delegatingConfig = new DelegatingWebMvcConfiguration();
 		delegatingConfig.setConfigurers(configurers);
 
-		RequestMappingHandlerAdapter adapter = delegatingConfig.requestMappingHandlerAdapter();
+		RequestMappingHandlerAdapter adapter = delegatingConfig.requestMappingHandlerAdapter(
+				this.delegatingConfig.mvcContentNegotiationManager(), this.delegatingConfig.mvcConversionService(),
+				this.delegatingConfig.mvcValidator());
 		assertEquals("Only one custom converter should be registered", 2, adapter.getMessageConverters().size());
 		assertSame(customConverter, adapter.getMessageConverters().get(0));
 		assertSame(stringConverter, adapter.getMessageConverters().get(1));
@@ -167,7 +170,7 @@ public class DelegatingWebMvcConfigurationTests {
 	@Test
 	public void handlerExceptionResolver() throws Exception {
 		delegatingConfig.setConfigurers(Collections.singletonList(webMvcConfigurer));
-		delegatingConfig.handlerExceptionResolver();
+		delegatingConfig.handlerExceptionResolver(delegatingConfig.mvcContentNegotiationManager());
 
 		verify(webMvcConfigurer).configureMessageConverters(converters.capture());
 		verify(webMvcConfigurer).configureContentNegotiation(contentNegotiationConfigurer.capture());
@@ -192,7 +195,8 @@ public class DelegatingWebMvcConfigurationTests {
 		delegatingConfig.setConfigurers(configurers);
 
 		HandlerExceptionResolverComposite composite =
-				(HandlerExceptionResolverComposite) delegatingConfig.handlerExceptionResolver();
+				(HandlerExceptionResolverComposite) delegatingConfig
+						.handlerExceptionResolver(delegatingConfig.mvcContentNegotiationManager());
 		assertEquals("Only one custom converter is expected", 1, composite.getExceptionResolvers().size());
 	}
 
@@ -213,7 +217,9 @@ public class DelegatingWebMvcConfigurationTests {
 		});
 		delegatingConfig.setConfigurers(configurers);
 
-		RequestMappingHandlerMapping handlerMapping = delegatingConfig.requestMappingHandlerMapping();
+		RequestMappingHandlerMapping handlerMapping = delegatingConfig.requestMappingHandlerMapping(
+				delegatingConfig.mvcContentNegotiationManager(), delegatingConfig.mvcConversionService(),
+				delegatingConfig.mvcResourceUrlProvider());
 		assertNotNull(handlerMapping);
 		assertEquals("PathMatchConfigurer should configure RegisteredSuffixPatternMatch",
 				true, handlerMapping.useRegisteredSuffixPatternMatch());

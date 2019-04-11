@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,11 +40,15 @@ import org.springframework.util.StringUtils;
  * @author Arjen Poutsma
  * @since 5.0
  */
-public class MediaTypeFactory {
+public final class MediaTypeFactory {
 
 	private static final String MIME_TYPES_FILE_NAME = "/org/springframework/http/mime.types";
 
 	private static final MultiValueMap<String, MediaType> fileExtensionToMediaTypes = parseMimeTypes();
+
+
+	private MediaTypeFactory() {
+	}
 
 
 	/**

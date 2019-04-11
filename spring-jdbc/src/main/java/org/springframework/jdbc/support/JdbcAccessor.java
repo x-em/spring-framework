@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,7 +39,7 @@ import org.springframework.util.Assert;
  */
 public abstract class JdbcAccessor implements InitializingBean {
 
-	/** Logger available to subclasses */
+	/** Logger available to subclasses. */
 	protected final Log logger = LogFactory.getLog(getClass());
 
 	@Nullable
@@ -81,7 +81,7 @@ public abstract class JdbcAccessor implements InitializingBean {
 	/**
 	 * Specify the database product name for the DataSource that this accessor uses.
 	 * This allows to initialize a SQLErrorCodeSQLExceptionTranslator without
-	 * obtaining a Connection from the DataSource to get the metadata.
+	 * obtaining a Connection from the DataSource to get the meta-data.
 	 * @param dbName the database product name that identifies the error codes entry
 	 * @see SQLErrorCodeSQLExceptionTranslator#setDatabaseProductName
 	 * @see java.sql.DatabaseMetaData#getDatabaseProductName()

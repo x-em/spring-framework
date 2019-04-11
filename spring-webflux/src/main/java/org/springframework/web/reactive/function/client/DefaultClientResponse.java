@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.core.codec.Hints;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -54,12 +54,21 @@ class DefaultClientResponse implements ClientResponse {
 
 	private final ExchangeStrategies strategies;
 
+	private final String logPrefix;
 
-	public DefaultClientResponse(ClientHttpResponse response, ExchangeStrategies strategies) {
+	private final String requestDescription;
+
+
+	public DefaultClientResponse(ClientHttpResponse response, ExchangeStrategies strategies,
+			String logPrefix, String requestDescription) {
+
 		this.response = response;
 		this.strategies = strategies;
 		this.headers = new DefaultHeaders();
+		this.logPrefix = logPrefix;
+		this.requestDescription = requestDescription;
 	}
+
 
 	@Override
 	public ExchangeStrategies strategies() {
@@ -72,6 +81,11 @@ class DefaultClientResponse implements ClientResponse {
 	}
 
 	@Override
+	public int rawStatusCode() {
+		return this.response.getRawStatusCode();
+	}
+
+	@Override
 	public Headers headers() {
 		return this.headers;
 	}
@@ -81,9 +95,10 @@ class DefaultClientResponse implements ClientResponse {
 		return this.response.getCookies();
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T body(BodyExtractor<T, ? super ClientHttpResponse> extractor) {
-		return extractor.extract(this.response, new BodyExtractor.Context() {
+		T result = extractor.extract(this.response, new BodyExtractor.Context() {
 			@Override
 			public List<HttpMessageReader<?>> messageReaders() {
 				return strategies.messageReaders();
@@ -96,89 +111,58 @@ class DefaultClientResponse implements ClientResponse {
 
 			@Override
 			public Map<String, Object> hints() {
-				return Collections.emptyMap();
+				return Hints.from(Hints.LOG_PREFIX_HINT, logPrefix);
 			}
 		});
+		String description = "Body from " + this.requestDescription + " [DefaultClientResponse]";
+		if (result instanceof Mono) {
+			return (T) ((Mono<?>) result).checkpoint(description);
+		}
+		else if (result instanceof Flux) {
+			return (T) ((Flux<?>) result).checkpoint(description);
+		}
+		else {
+			return result;
+		}
 	}
 
 	@Override
 	public <T> Mono<T> bodyToMono(Class<? extends T> elementClass) {
-		if (Void.class.isAssignableFrom(elementClass)) {
-			return consumeAndCancel();
-		}
-		else {
-			return body(BodyExtractors.toMono(elementClass));
-		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private <T> Mono<T> consumeAndCancel() {
-		return (Mono<T>) this.response.getBody()
-				.map(buffer -> {
-					DataBufferUtils.release(buffer);
-					throw new ReadCancellationException();
-				})
-				.onErrorResume(ReadCancellationException.class, ex -> Mono.empty())
-				.then();
+		return body(BodyExtractors.toMono(elementClass));
 	}
 
 	@Override
 	public <T> Mono<T> bodyToMono(ParameterizedTypeReference<T> typeReference) {
-		if (Void.class.isAssignableFrom(typeReference.getType().getClass())) {
-			return consumeAndCancel();
-		}
-		else {
-			return body(BodyExtractors.toMono(typeReference));
-		}
+		return body(BodyExtractors.toMono(typeReference));
 	}
 
 	@Override
 	public <T> Flux<T> bodyToFlux(Class<? extends T> elementClass) {
-		if (Void.class.isAssignableFrom(elementClass)) {
-			return Flux.from(consumeAndCancel());
-		}
-		else {
-			return body(BodyExtractors.toFlux(elementClass));
-		}
+		return body(BodyExtractors.toFlux(elementClass));
 	}
 
 	@Override
 	public <T> Flux<T> bodyToFlux(ParameterizedTypeReference<T> typeReference) {
-		if (Void.class.isAssignableFrom(typeReference.getType().getClass())) {
-			return Flux.from(consumeAndCancel());
-		}
-		else {
-			return body(BodyExtractors.toFlux(typeReference));
-		}
+		return body(BodyExtractors.toFlux(typeReference));
 	}
 
 	@Override
 	public <T> Mono<ResponseEntity<T>> toEntity(Class<T> bodyType) {
-		if (Void.class.isAssignableFrom(bodyType)) {
-			return toEntityInternal(consumeAndCancel());
-		}
-		else {
-			return toEntityInternal(bodyToMono(bodyType));
-		}
+		return toEntityInternal(bodyToMono(bodyType));
 	}
 
 	@Override
 	public <T> Mono<ResponseEntity<T>> toEntity(ParameterizedTypeReference<T> typeReference) {
-		if (Void.class.isAssignableFrom(typeReference.getType().getClass())) {
-			return toEntityInternal(consumeAndCancel());
-		}
-		else {
-			return toEntityInternal(bodyToMono(typeReference));
-		}
+		return toEntityInternal(bodyToMono(typeReference));
 	}
 
 	private <T> Mono<ResponseEntity<T>> toEntityInternal(Mono<T> bodyMono) {
 		HttpHeaders headers = headers().asHttpHeaders();
-		HttpStatus statusCode = statusCode();
+		int status = rawStatusCode();
 		return bodyMono
-				.map(body -> new ResponseEntity<>(body, headers, statusCode))
+				.map(body -> createEntity(body, headers, status))
 				.switchIfEmpty(Mono.defer(
-						() -> Mono.just(new ResponseEntity<>(headers, statusCode))));
+						() -> Mono.just(createEntity(headers, status))));
 	}
 
 	@Override
@@ -187,17 +171,30 @@ class DefaultClientResponse implements ClientResponse {
 	}
 
 	@Override
-	public <T> Mono<ResponseEntity<List<T>>> toEntityList(
-			ParameterizedTypeReference<T> typeReference) {
+	public <T> Mono<ResponseEntity<List<T>>> toEntityList(ParameterizedTypeReference<T> typeReference) {
 		return toEntityListInternal(bodyToFlux(typeReference));
 	}
 
 	private <T> Mono<ResponseEntity<List<T>>> toEntityListInternal(Flux<T> bodyFlux) {
 		HttpHeaders headers = headers().asHttpHeaders();
-		HttpStatus statusCode = statusCode();
+		int status = rawStatusCode();
 		return bodyFlux
 				.collectList()
-				.map(body -> new ResponseEntity<>(body, headers, statusCode));
+				.map(body -> createEntity(body, headers, status));
+	}
+
+	private <T> ResponseEntity<T> createEntity(HttpHeaders headers, int status) {
+		HttpStatus resolvedStatus = HttpStatus.resolve(status);
+		return resolvedStatus != null
+				? new ResponseEntity<>(headers, resolvedStatus)
+				: ResponseEntity.status(status).headers(headers).build();
+	}
+
+	private <T> ResponseEntity<T> createEntity(T body, HttpHeaders headers, int status) {
+		HttpStatus resolvedStatus = HttpStatus.resolve(status);
+		return resolvedStatus != null
+				? new ResponseEntity<>(body, headers, resolvedStatus)
+				: ResponseEntity.status(status).headers(headers).body(body);
 	}
 
 
@@ -220,7 +217,7 @@ class DefaultClientResponse implements ClientResponse {
 		@Override
 		public List<String> header(String headerName) {
 			List<String> headerValues = delegate().get(headerName);
-			return headerValues != null ? headerValues : Collections.emptyList();
+			return (headerValues != null ? headerValues : Collections.emptyList());
 		}
 
 		@Override
@@ -229,12 +226,8 @@ class DefaultClientResponse implements ClientResponse {
 		}
 
 		private OptionalLong toOptionalLong(long value) {
-			return value != -1 ? OptionalLong.of(value) : OptionalLong.empty();
+			return (value != -1 ? OptionalLong.of(value) : OptionalLong.empty());
 		}
-
 	}
 
-	@SuppressWarnings("serial")
-	private class ReadCancellationException extends RuntimeException {
-	}
 }

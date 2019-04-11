@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -87,7 +87,7 @@ public class ContextLoaderTests {
 
 	/**
 	 * Addresses the issues raised in <a
-	 * href="http://opensource.atlassian.com/projects/spring/browse/SPR-4008"
+	 * href="https://opensource.atlassian.com/projects/spring/browse/SPR-4008"
 	 * target="_blank">SPR-4008</a>: <em>Supply an opportunity to customize
 	 * context before calling refresh in ContextLoaders</em>.
 	 */
@@ -321,6 +321,7 @@ public class ContextLoaderTests {
 	}
 
 	@Test
+	@SuppressWarnings("resource")
 	public void testClassPathXmlApplicationContext() throws IOException {
 		ApplicationContext context = new ClassPathXmlApplicationContext(
 				"/org/springframework/web/context/WEB-INF/applicationContext.xml");
@@ -338,30 +339,25 @@ public class ContextLoaderTests {
 		assertTrue("Has kerry", context.containsBean("kerry"));
 	}
 
-	@Test
+	@Test(expected = BeanCreationException.class)
+	@SuppressWarnings("resource")
 	public void testSingletonDestructionOnStartupFailure() throws IOException {
-		try {
-			new ClassPathXmlApplicationContext(new String[] {
-				"/org/springframework/web/context/WEB-INF/applicationContext.xml",
-				"/org/springframework/web/context/WEB-INF/fail.xml" }) {
+		new ClassPathXmlApplicationContext(new String[] {
+			"/org/springframework/web/context/WEB-INF/applicationContext.xml",
+			"/org/springframework/web/context/WEB-INF/fail.xml" }) {
 
-				@Override
-				public void refresh() throws BeansException {
-					try {
-						super.refresh();
-					}
-					catch (BeanCreationException ex) {
-						DefaultListableBeanFactory factory = (DefaultListableBeanFactory) getBeanFactory();
-						assertEquals(0, factory.getSingletonCount());
-						throw ex;
-					}
+			@Override
+			public void refresh() throws BeansException {
+				try {
+					super.refresh();
 				}
-			};
-			fail("Should have thrown BeanCreationException");
-		}
-		catch (BeanCreationException ex) {
-			// expected
-		}
+				catch (BeanCreationException ex) {
+					DefaultListableBeanFactory factory = (DefaultListableBeanFactory) getBeanFactory();
+					assertEquals(0, factory.getSingletonCount());
+					throw ex;
+				}
+			}
+		};
 	}
 
 

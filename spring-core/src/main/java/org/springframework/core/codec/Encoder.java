@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -66,17 +66,6 @@ public interface Encoder<T> {
 	 */
 	Flux<DataBuffer> encode(Publisher<? extends T> inputStream, DataBufferFactory bufferFactory,
 			ResolvableType elementType, @Nullable MimeType mimeType, @Nullable Map<String, Object> hints);
-
-	/**
-	 * Return the length for the given item, if known.
-	 * @param t the item to check
-	 * @return the length in bytes, or {@code null} if not known.
-	 * @since 5.0.5
-	 */
-	@Nullable
-	default Long getContentLength(T t, @Nullable MimeType mimeType) {
-		return null;
-	}
 
 	/**
 	 * Return the list of mime types this encoder supports.

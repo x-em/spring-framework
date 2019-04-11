@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.lang.Nullable;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -36,12 +35,13 @@ import org.springframework.web.socket.sockjs.SockJsService;
 import org.springframework.web.socket.sockjs.transport.handler.WebSocketTransportHandler;
 
 /**
- * Base class for {@link WebSocketHandlerRegistration}s that gathers all the configuration
+ * Base class for {@link WebSocketHandlerRegistration WebSocketHandlerRegistrations} that gathers all the configuration
  * options but allows sub-classes to put together the actual HTTP request mappings.
  *
  * @author Rossen Stoyanchev
  * @author Sebastien Deleuze
  * @since 4.0
+ * @param <M> the mappings type
  */
 public abstract class AbstractWebSocketHandlerRegistration<M> implements WebSocketHandlerRegistration {
 
@@ -56,23 +56,6 @@ public abstract class AbstractWebSocketHandlerRegistration<M> implements WebSock
 
 	@Nullable
 	private SockJsServiceRegistration sockJsServiceRegistration;
-
-	@Nullable
-	private TaskScheduler scheduler;
-
-
-	public AbstractWebSocketHandlerRegistration() {
-	}
-
-	/**
-	 * Deprecated constructor with a TaskScheduler.
-	 * @deprecated as of 5.0 a TaskScheduler is not provided upfront, not until
-	 * it is obvious that it is needed, see {@link #getSockJsServiceRegistration()}.
-	 */
-	@Deprecated
-	public AbstractWebSocketHandlerRegistration(TaskScheduler defaultTaskScheduler) {
-		this.scheduler = defaultTaskScheduler;
-	}
 
 
 	@Override
@@ -114,9 +97,6 @@ public abstract class AbstractWebSocketHandlerRegistration<M> implements WebSock
 	@Override
 	public SockJsServiceRegistration withSockJS() {
 		this.sockJsServiceRegistration = new SockJsServiceRegistration();
-		if (this.scheduler != null) {
-			this.sockJsServiceRegistration.setTaskScheduler(this.scheduler);
-		}
 		HandshakeInterceptor[] interceptors = getInterceptors();
 		if (interceptors.length > 0) {
 			this.sockJsServiceRegistration.setInterceptors(interceptors);
@@ -153,21 +133,21 @@ public abstract class AbstractWebSocketHandlerRegistration<M> implements WebSock
 		M mappings = createMappings();
 		if (this.sockJsServiceRegistration != null) {
 			SockJsService sockJsService = this.sockJsServiceRegistration.getSockJsService();
-			for (WebSocketHandler wsHandler : this.handlerMap.keySet()) {
-				for (String path : this.handlerMap.get(wsHandler)) {
+			this.handlerMap.forEach((wsHandler, paths) -> {
+				for (String path : paths) {
 					String pathPattern = (path.endsWith("/") ? path + "**" : path + "/**");
 					addSockJsServiceMapping(mappings, sockJsService, wsHandler, pathPattern);
 				}
-			}
+			});
 		}
 		else {
 			HandshakeHandler handshakeHandler = getOrCreateHandshakeHandler();
 			HandshakeInterceptor[] interceptors = getInterceptors();
-			for (WebSocketHandler wsHandler : this.handlerMap.keySet()) {
-				for (String path : this.handlerMap.get(wsHandler)) {
+			this.handlerMap.forEach((wsHandler, paths) -> {
+				for (String path : paths) {
 					addWebSocketHandlerMapping(mappings, wsHandler, handshakeHandler, interceptors, path);
 				}
-			}
+			});
 		}
 
 		return mappings;

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -82,42 +82,42 @@ public class ResultSetWrappingRowSetTests {
 	public void testGetTimestampInt() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getTimestamp", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getTimestamp", int.class);
-		doTest(rset, rowset, 1, new Timestamp(1234l));
+		doTest(rset, rowset, 1, new Timestamp(1234L));
 	}
 
 	@Test
 	public void testGetTimestampString() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getTimestamp", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getTimestamp", String.class);
-		doTest(rset, rowset, "test", new Timestamp(1234l));
+		doTest(rset, rowset, "test", new Timestamp(1234L));
 	}
 
 	@Test
 	public void testGetDateInt() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getDate", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getDate", int.class);
-		doTest(rset, rowset, 1, new Date(1234l));
+		doTest(rset, rowset, 1, new Date(1234L));
 	}
 
 	@Test
 	public void testGetDateString() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getDate", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getDate", String.class);
-		doTest(rset, rowset, "test", new Date(1234l));
+		doTest(rset, rowset, "test", new Date(1234L));
 	}
 
 	@Test
 	public void testGetTimeInt() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getTime", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getTime", int.class);
-		doTest(rset, rowset, 1, new Time(1234l));
+		doTest(rset, rowset, 1, new Time(1234L));
 	}
 
 	@Test
 	public void testGetTimeString() throws Exception {
 		Method rset = ResultSet.class.getDeclaredMethod("getTime", int.class);
 		Method rowset = ResultSetWrappingSqlRowSet.class.getDeclaredMethod("getTime", String.class);
-		doTest(rset, rowset, "test", new Time(1234l));
+		doTest(rset, rowset, "test", new Time(1234L));
 	}
 
 	@Test

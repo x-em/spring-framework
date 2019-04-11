@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -186,6 +186,9 @@ public class ContentNegotiationConfigurer {
 	}
 
 	/**
+	 * When {@link #favorPathExtension} is set, this property determines whether
+	 * to allow use of JAF (Java Activation Framework) to resolve a path
+	 * extension to a specific MediaType.
 	 * @deprecated as of 5.0, in favor of {@link #useRegisteredExtensionsOnly(boolean)}
 	 * which has reverse behavior
 	 */
@@ -253,8 +256,8 @@ public class ContentNegotiationConfigurer {
 	 * Set a custom {@link ContentNegotiationStrategy} to use to determine
 	 * the content type to use when no content type is requested.
 	 * <p>By default this is not set.
-	 * @see #defaultContentType
 	 * @since 4.1.2
+	 * @see #defaultContentType
 	 */
 	public ContentNegotiationConfigurer defaultContentTypeStrategy(ContentNegotiationStrategy defaultStrategy) {
 		this.factory.setDefaultContentTypeStrategy(defaultStrategy);

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,9 +20,9 @@ import java.net.URI;
 
 import org.junit.Test;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -103,11 +103,15 @@ public class MultipartIntegrationTests extends AbstractHttpHandlerIntegrationTes
 			assertEquals("fooPart", part.name());
 			assertTrue(part instanceof FilePart);
 			assertEquals("foo.txt", ((FilePart) part).filename());
-			DataBuffer buffer = DataBufferUtils.join(part.content()).block();
-			assertEquals(12, buffer.readableByteCount());
-			byte[] byteContent = new byte[12];
-			buffer.read(byteContent);
-			assertEquals("Lorem Ipsum.", new String(byteContent));
+
+			StepVerifier.create(DataBufferUtils.join(part.content()))
+					.consumeNextWith(buffer -> {
+						assertEquals(12, buffer.readableByteCount());
+						byte[] byteContent = new byte[12];
+						buffer.read(byteContent);
+						assertEquals("Lorem Ipsum.", new String(byteContent));
+					})
+					.verifyComplete();
 		}
 
 		private void assertBarPart(Part part) {

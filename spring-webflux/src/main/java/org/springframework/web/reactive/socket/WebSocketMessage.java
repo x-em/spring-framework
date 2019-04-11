@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -134,10 +134,31 @@ public class WebSocketMessage {
 		return this.type.hashCode() * 29 + this.payload.hashCode();
 	}
 
+	@Override
+	public String toString() {
+		return "WebSocket " + this.type.name() + " message (" + this.payload.readableByteCount() + " bytes)";
+	}
 
 	/**
 	 * WebSocket message types.
 	 */
-	public enum Type { TEXT, BINARY, PING, PONG }
+	public enum Type {
+		/**
+		 * Text WebSocket message.
+		 */
+		TEXT,
+		/**
+		 * Binary WebSocket message.
+		 */
+		BINARY,
+		/**
+		 * WebSocket ping.
+		 */
+		PING,
+		/**
+		 * WebSocket pong.
+		 */
+		PONG;
+	}
 
 }
