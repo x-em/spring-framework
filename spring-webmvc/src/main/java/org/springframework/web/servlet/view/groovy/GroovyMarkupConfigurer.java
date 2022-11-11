@@ -80,7 +80,7 @@ import org.springframework.util.StringUtils;
  * @author Rossen Stoyanchev
  * @since 4.1
  * @see GroovyMarkupView
- * @see <a href="http://groovy-lang.org/templating.html#_the_markuptemplateengine">
+ * @see <a href="https://groovy-lang.org/templating.html#_the_markuptemplateengine">
  *     Groovy Markup Template engine documentation</a>
  */
 public class GroovyMarkupConfigurer extends TemplateConfiguration
@@ -121,6 +121,7 @@ public class GroovyMarkupConfigurer extends TemplateConfiguration
 		this.templateEngine = templateEngine;
 	}
 
+	@Override
 	public MarkupTemplateEngine getTemplateEngine() {
 		Assert.state(this.templateEngine != null, "No MarkupTemplateEngine set");
 		return this.templateEngine;

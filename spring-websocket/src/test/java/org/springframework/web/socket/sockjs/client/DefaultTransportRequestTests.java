@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,27 @@ package org.springframework.web.socket.sockjs.client;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Date;
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.util.concurrent.ListenableFutureCallback;
-import org.springframework.util.concurrent.SettableListenableFuture;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.sockjs.frame.Jackson2SockJsMessageCodec;
 import org.springframework.web.socket.sockjs.transport.TransportType;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * Unit tests for {@link DefaultTransportRequest}.
@@ -48,25 +50,21 @@ public class DefaultTransportRequestTests {
 	private static final Jackson2SockJsMessageCodec CODEC = new Jackson2SockJsMessageCodec();
 
 
-	private SettableListenableFuture<WebSocketSession> connectFuture;
+	private CompletableFuture<WebSocketSession> connectFuture;
 
-	private ListenableFutureCallback<WebSocketSession> connectCallback;
+	private BiConsumer<WebSocketSession, Throwable> connectCallback;
 
 	private TestTransport webSocketTransport;
 
 	private TestTransport xhrTransport;
 
 
-	@Rule
-	public final ExpectedException thrown = ExpectedException.none();
-
-
 	@SuppressWarnings("unchecked")
-	@Before
+	@BeforeEach
 	public void setup() throws Exception {
-		this.connectCallback = mock(ListenableFutureCallback.class);
-		this.connectFuture = new SettableListenableFuture<>();
-		this.connectFuture.addCallback(this.connectCallback);
+		this.connectCallback = mock(BiConsumer.class);
+		this.connectFuture = new CompletableFuture<>();
+		this.connectFuture.whenComplete(this.connectCallback);
 		this.webSocketTransport = new TestTransport("WebSocketTestTransport");
 		this.xhrTransport = new TestTransport("XhrTestTransport");
 	}
@@ -77,8 +75,8 @@ public class DefaultTransportRequestTests {
 		DefaultTransportRequest request = createTransportRequest(this.webSocketTransport, TransportType.WEBSOCKET);
 		request.connect(null, this.connectFuture);
 		WebSocketSession session = mock(WebSocketSession.class);
-		this.webSocketTransport.getConnectCallback().onSuccess(session);
-		assertSame(session, this.connectFuture.get());
+		this.webSocketTransport.getConnectCallback().accept(session, null);
+		assertThat(this.connectFuture.get()).isSameAs(session);
 	}
 
 	@Test
@@ -89,16 +87,16 @@ public class DefaultTransportRequestTests {
 		request1.connect(null, this.connectFuture);
 
 		// Transport error => fallback
-		this.webSocketTransport.getConnectCallback().onFailure(new IOException("Fake exception 1"));
-		assertFalse(this.connectFuture.isDone());
-		assertTrue(this.xhrTransport.invoked());
+		this.webSocketTransport.getConnectCallback().accept(null, new IOException("Fake exception 1"));
+		assertThat(this.connectFuture.isDone()).isFalse();
+		assertThat(this.xhrTransport.invoked()).isTrue();
 
 		// Transport error => no more fallback
-		this.xhrTransport.getConnectCallback().onFailure(new IOException("Fake exception 2"));
-		assertTrue(this.connectFuture.isDone());
-		this.thrown.expect(ExecutionException.class);
-		this.thrown.expectMessage("Fake exception 2");
-		this.connectFuture.get();
+		this.xhrTransport.getConnectCallback().accept(null, new IOException("Fake exception 2"));
+		assertThat(this.connectFuture.isDone()).isTrue();
+		assertThatExceptionOfType(ExecutionException.class).isThrownBy(
+				this.connectFuture::get)
+			.withMessageContaining("Fake exception 2");
 	}
 
 	@Test
@@ -112,16 +110,16 @@ public class DefaultTransportRequestTests {
 		request1.addTimeoutTask(sessionCleanupTask);
 		request1.connect(null, this.connectFuture);
 
-		assertTrue(this.webSocketTransport.invoked());
-		assertFalse(this.xhrTransport.invoked());
+		assertThat(this.webSocketTransport.invoked()).isTrue();
+		assertThat(this.xhrTransport.invoked()).isFalse();
 
 		// Get and invoke the scheduled timeout task
 		ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
-		verify(scheduler).schedule(taskCaptor.capture(), any(Date.class));
+		verify(scheduler).schedule(taskCaptor.capture(), any(Instant.class));
 		verifyNoMoreInteractions(scheduler);
 		taskCaptor.getValue().run();
 
-		assertTrue(this.xhrTransport.invoked());
+		assertThat(this.xhrTransport.invoked()).isTrue();
 		verify(sessionCleanupTask).run();
 	}
 

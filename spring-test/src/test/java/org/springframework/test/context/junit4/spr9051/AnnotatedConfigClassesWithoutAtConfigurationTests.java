@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package org.springframework.test.context.junit4.spr9051;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,7 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * This set of tests refutes the claims made in
@@ -75,7 +73,7 @@ public class AnnotatedConfigClassesWithoutAtConfigurationTests {
 			// enigma() method, not a CGLIB proxied version, since these methods
 			// are essentially factory bean methods.
 			LifecycleBean bean = new LifecycleBean(enigma());
-			assertFalse(bean.isInitialized());
+			assertThat(bean.isInitialized()).isFalse();
 			return bean;
 		}
 	}
@@ -90,12 +88,11 @@ public class AnnotatedConfigClassesWithoutAtConfigurationTests {
 
 	@Test
 	public void testSPR_9051() throws Exception {
-		assertNotNull(enigma);
-		assertNotNull(lifecycleBean);
-		assertTrue(lifecycleBean.isInitialized());
-		Set<String> names = new HashSet<>();
-		names.add(enigma.toString());
-		names.add(lifecycleBean.getName());
-		assertEquals(names, new HashSet<>(Arrays.asList("enigma #1", "enigma #2")));
+		assertThat(enigma).isNotNull();
+		assertThat(lifecycleBean).isNotNull();
+		assertThat(lifecycleBean.isInitialized()).isTrue();
+		Set<String> names = Set.of(enigma, lifecycleBean.getName());
+		assertThat(names).containsExactlyInAnyOrder("enigma #1", "enigma #2");
 	}
+
 }

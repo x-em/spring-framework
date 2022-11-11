@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
 
 package org.springframework.scheduling.config;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -42,19 +43,33 @@ import org.springframework.util.CollectionUtils;
  * expressions.
  *
  * <p>As of Spring 3.1, {@code ScheduledTaskRegistrar} has a more prominent user-facing
- * role when used in conjunction with the @{@link
- * org.springframework.scheduling.annotation.EnableAsync EnableAsync} annotation and its
+ * role when used in conjunction with the {@link
+ * org.springframework.scheduling.annotation.EnableAsync @EnableAsync} annotation and its
  * {@link org.springframework.scheduling.annotation.SchedulingConfigurer
  * SchedulingConfigurer} callback interface.
  *
  * @author Juergen Hoeller
  * @author Chris Beams
  * @author Tobias Montagna-Hay
+ * @author Sam Brannen
+ * @author Arjen Poutsma
  * @since 3.0
  * @see org.springframework.scheduling.annotation.EnableAsync
  * @see org.springframework.scheduling.annotation.SchedulingConfigurer
  */
 public class ScheduledTaskRegistrar implements ScheduledTaskHolder, InitializingBean, DisposableBean {
+
+	/**
+	 * A special cron expression value that indicates a disabled trigger: {@value}.
+	 * <p>This is primarily meant for use with {@link #addCronTask(Runnable, String)}
+	 * when the value for the supplied {@code expression} is retrieved from an
+	 * external source &mdash; for example, from a property in the
+	 * {@link org.springframework.core.env.Environment Environment}.
+	 * @since 5.2
+	 * @see org.springframework.scheduling.annotation.Scheduled#CRON_DISABLED
+	 */
+	public static final String CRON_DISABLED = "-";
+
 
 	@Nullable
 	private TaskScheduler taskScheduler;
@@ -176,11 +191,11 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	/**
 	 * Specify triggered tasks as a Map of Runnables (the tasks) and fixed-rate values.
-	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, long)
+	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, Duration)
 	 */
 	public void setFixedRateTasks(Map<Runnable, Long> fixedRateTasks) {
 		this.fixedRateTasks = new ArrayList<>();
-		fixedRateTasks.forEach(this::addFixedRateTask);
+		fixedRateTasks.forEach((task, interval) -> addFixedRateTask(task, Duration.ofMillis(interval)));
 	}
 
 	/**
@@ -205,11 +220,11 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	/**
 	 * Specify triggered tasks as a Map of Runnables (the tasks) and fixed-delay values.
-	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, long)
+	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, Duration)
 	 */
 	public void setFixedDelayTasks(Map<Runnable, Long> fixedDelayTasks) {
 		this.fixedDelayTasks = new ArrayList<>();
-		fixedDelayTasks.forEach(this::addFixedDelayTask);
+		fixedDelayTasks.forEach((task, delay) -> addFixedDelayTask(task, Duration.ofMillis(delay)));
 	}
 
 	/**
@@ -235,7 +250,7 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	/**
 	 * Add a Runnable task to be triggered per the given {@link Trigger}.
-	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, long)
+	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, Duration)
 	 */
 	public void addTriggerTask(Runnable task, Trigger trigger) {
 		addTriggerTask(new TriggerTask(task, trigger));
@@ -244,7 +259,7 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 	/**
 	 * Add a {@code TriggerTask}.
 	 * @since 3.2
-	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, long)
+	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, Duration)
 	 */
 	public void addTriggerTask(TriggerTask task) {
 		if (this.triggerTasks == null) {
@@ -254,10 +269,14 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 	}
 
 	/**
-	 * Add a Runnable task to be triggered per the given cron expression.
+	 * Add a {@link Runnable} task to be triggered per the given cron {@code expression}.
+	 * <p>As of Spring Framework 5.2, this method will not register the task if the
+	 * {@code expression} is equal to {@link #CRON_DISABLED}.
 	 */
 	public void addCronTask(Runnable task, String expression) {
-		addCronTask(new CronTask(task, expression));
+		if (!CRON_DISABLED.equals(expression)) {
+			addCronTask(new CronTask(task, expression));
+		}
 	}
 
 	/**
@@ -273,16 +292,26 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	/**
 	 * Add a {@code Runnable} task to be triggered at the given fixed-rate interval.
-	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, long)
+	 * @deprecated as of 6.0, in favor of {@link #addFixedRateTask(Runnable, Duration)}
 	 */
+	@Deprecated(since = "6.0")
 	public void addFixedRateTask(Runnable task, long interval) {
-		addFixedRateTask(new IntervalTask(task, interval, 0));
+		addFixedRateTask(new IntervalTask(task, Duration.ofMillis(interval)));
+	}
+
+	/**
+	 * Add a {@code Runnable} task to be triggered at the given fixed-rate interval.
+	 * @since 6.0
+	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, Duration)
+	 */
+	public void addFixedRateTask(Runnable task, Duration interval) {
+		addFixedRateTask(new IntervalTask(task, interval));
 	}
 
 	/**
 	 * Add a fixed-rate {@link IntervalTask}.
 	 * @since 3.2
-	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, long)
+	 * @see TaskScheduler#scheduleAtFixedRate(Runnable, Duration)
 	 */
 	public void addFixedRateTask(IntervalTask task) {
 		if (this.fixedRateTasks == null) {
@@ -293,16 +322,26 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	/**
 	 * Add a Runnable task to be triggered with the given fixed delay.
-	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, long)
+	 * @deprecated as of 6.0, in favor of {@link #addFixedDelayTask(Runnable, Duration)}
 	 */
+	@Deprecated(since = "6.0")
 	public void addFixedDelayTask(Runnable task, long delay) {
-		addFixedDelayTask(new IntervalTask(task, delay, 0));
+		addFixedDelayTask(new IntervalTask(task, Duration.ofMillis(delay)));
+	}
+
+	/**
+	 * Add a Runnable task to be triggered with the given fixed delay.
+	 * @since 6.0
+	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, Duration)
+	 */
+	public void addFixedDelayTask(Runnable task, Duration delay) {
+		addFixedDelayTask(new IntervalTask(task, delay));
 	}
 
 	/**
 	 * Add a fixed-delay {@link IntervalTask}.
 	 * @since 3.2
-	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, long)
+	 * @see TaskScheduler#scheduleWithFixedDelay(Runnable, Duration)
 	 */
 	public void addFixedDelayTask(IntervalTask task) {
 		if (this.fixedDelayTasks == null) {
@@ -336,7 +375,6 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 	 * Schedule all registered tasks against the underlying
 	 * {@linkplain #setTaskScheduler(TaskScheduler) task scheduler}.
 	 */
-	@SuppressWarnings("deprecation")
 	protected void scheduleTasks() {
 		if (this.taskScheduler == null) {
 			this.localExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -354,12 +392,22 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 		}
 		if (this.fixedRateTasks != null) {
 			for (IntervalTask task : this.fixedRateTasks) {
-				addScheduledTask(scheduleFixedRateTask(task));
+				if (task instanceof FixedRateTask fixedRateTask) {
+					addScheduledTask(scheduleFixedRateTask(fixedRateTask));
+				}
+				else {
+					addScheduledTask(scheduleFixedRateTask(new FixedRateTask(task)));
+				}
 			}
 		}
 		if (this.fixedDelayTasks != null) {
 			for (IntervalTask task : this.fixedDelayTasks) {
-				addScheduledTask(scheduleFixedDelayTask(task));
+				if (task instanceof FixedDelayTask fixedDelayTask) {
+					addScheduledTask(scheduleFixedDelayTask(fixedDelayTask));
+				}
+				else {
+					addScheduledTask(scheduleFixedDelayTask(new FixedDelayTask(task)));
+				}
 			}
 		}
 	}
@@ -425,22 +473,6 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 	 * or on initialization of the scheduler.
 	 * @return a handle to the scheduled task, allowing to cancel it
 	 * (or {@code null} if processing a previously registered task)
-	 * @since 4.3
-	 * @deprecated as of 5.0.2, in favor of {@link #scheduleFixedRateTask(FixedRateTask)}
-	 */
-	@Deprecated
-	@Nullable
-	public ScheduledTask scheduleFixedRateTask(IntervalTask task) {
-		FixedRateTask taskToUse = (task instanceof FixedRateTask ? (FixedRateTask) task :
-				new FixedRateTask(task.getRunnable(), task.getInterval(), task.getInitialDelay()));
-		return scheduleFixedRateTask(taskToUse);
-	}
-
-	/**
-	 * Schedule the specified fixed-rate task, either right away if possible
-	 * or on initialization of the scheduler.
-	 * @return a handle to the scheduled task, allowing to cancel it
-	 * (or {@code null} if processing a previously registered task)
 	 * @since 5.0.2
 	 */
 	@Nullable
@@ -452,14 +484,15 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 			newTask = true;
 		}
 		if (this.taskScheduler != null) {
-			if (task.getInitialDelay() > 0) {
-				Date startTime = new Date(System.currentTimeMillis() + task.getInitialDelay());
+			Duration initialDelay = task.getInitialDelayDuration();
+			if (initialDelay.toMillis() > 0) {
+				Instant startTime = this.taskScheduler.getClock().instant().plus(initialDelay);
 				scheduledTask.future =
-						this.taskScheduler.scheduleAtFixedRate(task.getRunnable(), startTime, task.getInterval());
+						this.taskScheduler.scheduleAtFixedRate(task.getRunnable(), startTime, task.getIntervalDuration());
 			}
 			else {
 				scheduledTask.future =
-						this.taskScheduler.scheduleAtFixedRate(task.getRunnable(), task.getInterval());
+						this.taskScheduler.scheduleAtFixedRate(task.getRunnable(), task.getIntervalDuration());
 			}
 		}
 		else {
@@ -467,22 +500,6 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 			this.unresolvedTasks.put(task, scheduledTask);
 		}
 		return (newTask ? scheduledTask : null);
-	}
-
-	/**
-	 * Schedule the specified fixed-delay task, either right away if possible
-	 * or on initialization of the scheduler.
-	 * @return a handle to the scheduled task, allowing to cancel it
-	 * (or {@code null} if processing a previously registered task)
-	 * @since 4.3
-	 * @deprecated as of 5.0.2, in favor of {@link #scheduleFixedDelayTask(FixedDelayTask)}
-	 */
-	@Deprecated
-	@Nullable
-	public ScheduledTask scheduleFixedDelayTask(IntervalTask task) {
-		FixedDelayTask taskToUse = (task instanceof FixedDelayTask ? (FixedDelayTask) task :
-				new FixedDelayTask(task.getRunnable(), task.getInterval(), task.getInitialDelay()));
-		return scheduleFixedDelayTask(taskToUse);
 	}
 
 	/**
@@ -501,14 +518,15 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 			newTask = true;
 		}
 		if (this.taskScheduler != null) {
-			if (task.getInitialDelay() > 0) {
-				Date startTime = new Date(System.currentTimeMillis() + task.getInitialDelay());
+			Duration initialDelay = task.getInitialDelayDuration();
+			if (!initialDelay.isNegative()) {
+				Instant startTime = this.taskScheduler.getClock().instant().plus(task.getInitialDelayDuration());
 				scheduledTask.future =
-						this.taskScheduler.scheduleWithFixedDelay(task.getRunnable(), startTime, task.getInterval());
+						this.taskScheduler.scheduleWithFixedDelay(task.getRunnable(), startTime, task.getIntervalDuration());
 			}
 			else {
 				scheduledTask.future =
-						this.taskScheduler.scheduleWithFixedDelay(task.getRunnable(), task.getInterval());
+						this.taskScheduler.scheduleWithFixedDelay(task.getRunnable(), task.getIntervalDuration());
 			}
 		}
 		else {

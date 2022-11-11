@@ -16,7 +16,6 @@
 
 package org.springframework.http.converter;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import org.springframework.http.HttpInputMessage;
@@ -28,7 +27,7 @@ import org.springframework.util.StreamUtils;
 /**
  * Implementation of {@link HttpMessageConverter} that can read and write byte arrays.
  *
- * <p>By default, this converter supports all media types ({@code &#42;&#47;&#42;}), and
+ * <p>By default, this converter supports all media types (<code>&#42;/&#42;</code>), and
  * writes with a {@code Content-Type} of {@code application/octet-stream}. This can be
  * overridden by setting the {@link #setSupportedMediaTypes supportedMediaTypes} property.
  *
@@ -53,11 +52,7 @@ public class ByteArrayHttpMessageConverter extends AbstractHttpMessageConverter<
 
 	@Override
 	public byte[] readInternal(Class<? extends byte[]> clazz, HttpInputMessage inputMessage) throws IOException {
-		long contentLength = inputMessage.getHeaders().getContentLength();
-		ByteArrayOutputStream bos =
-				new ByteArrayOutputStream(contentLength >= 0 ? (int) contentLength : StreamUtils.BUFFER_SIZE);
-		StreamUtils.copy(inputMessage.getBody(), bos);
-		return bos.toByteArray();
+		return inputMessage.getBody().readAllBytes();
 	}
 
 	@Override

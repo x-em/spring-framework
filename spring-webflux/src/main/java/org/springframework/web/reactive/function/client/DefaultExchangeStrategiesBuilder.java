@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package org.springframework.web.reactive.function.client;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -29,6 +27,7 @@ import org.springframework.http.codec.HttpMessageWriter;
  * Default implementation of {@link ExchangeStrategies.Builder}.
  *
  * @author Arjen Poutsma
+ * @author Brian Clozel
  * @since 5.0
  */
 final class DefaultExchangeStrategiesBuilder implements ExchangeStrategies.Builder {
@@ -42,11 +41,16 @@ final class DefaultExchangeStrategiesBuilder implements ExchangeStrategies.Build
 	}
 
 
-	private final ClientCodecConfigurer codecConfigurer = ClientCodecConfigurer.create();
+	private final ClientCodecConfigurer codecConfigurer;
 
 
 	public DefaultExchangeStrategiesBuilder() {
+		this.codecConfigurer = ClientCodecConfigurer.create();
 		this.codecConfigurer.registerDefaults(false);
+	}
+
+	private DefaultExchangeStrategiesBuilder(DefaultExchangeStrategies other) {
+		this.codecConfigurer = other.codecConfigurer.clone();
 	}
 
 
@@ -62,27 +66,24 @@ final class DefaultExchangeStrategiesBuilder implements ExchangeStrategies.Build
 
 	@Override
 	public ExchangeStrategies build() {
-		return new DefaultExchangeStrategies(
-				this.codecConfigurer.getReaders(), this.codecConfigurer.getWriters());
+		return new DefaultExchangeStrategies(this.codecConfigurer);
 	}
 
 
 	private static class DefaultExchangeStrategies implements ExchangeStrategies {
+
+		private final ClientCodecConfigurer codecConfigurer;
 
 		private final List<HttpMessageReader<?>> readers;
 
 		private final List<HttpMessageWriter<?>> writers;
 
 
-		public DefaultExchangeStrategies(List<HttpMessageReader<?>> readers, List<HttpMessageWriter<?>> writers) {
-			this.readers = unmodifiableCopy(readers);
-			this.writers = unmodifiableCopy(writers);
+		public DefaultExchangeStrategies(ClientCodecConfigurer codecConfigurer) {
+			this.codecConfigurer = codecConfigurer;
+			this.readers = List.copyOf(this.codecConfigurer.getReaders());
+			this.writers = List.copyOf(this.codecConfigurer.getWriters());
 		}
-
-		private static <T> List<T> unmodifiableCopy(List<? extends T> list) {
-			return Collections.unmodifiableList(new ArrayList<>(list));
-		}
-
 
 		@Override
 		public List<HttpMessageReader<?>> messageReaders() {
@@ -92,6 +93,11 @@ final class DefaultExchangeStrategiesBuilder implements ExchangeStrategies.Build
 		@Override
 		public List<HttpMessageWriter<?>> messageWriters() {
 			return this.writers;
+		}
+
+		@Override
+		public Builder mutate() {
+			return new DefaultExchangeStrategiesBuilder(this);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,14 @@
 package org.springframework.test.web.servlet.result;
 
 import org.hamcrest.Matchers;
-
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.StubMvcResult;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Unit tests for {@link JsonPathResultMatchers}.
@@ -30,19 +33,22 @@ import org.springframework.test.web.servlet.StubMvcResult;
  * @author Craig Andrews
  * @author Sam Brannen
  * @author Brian Clozel
+ * @author Sebastien Deleuze
  */
-public class JsonPathResultMatchersTests {
+class JsonPathResultMatchersTests {
 
-	private static final String RESPONSE_CONTENT = "{" + //
-			"'str':         'foo',           " + //
-			"'num':         5,               " + //
-			"'bool':        true,            " + //
-			"'arr':         [42],            " + //
-			"'colorMap':    {'red': 'rojo'}, " + //
-			"'emptyString': '',              " + //
-			"'emptyArray':  [],              " + //
-			"'emptyMap':    {}               " + //
-			"}";
+	private static final String RESPONSE_CONTENT = """
+			{
+				'str':         'foo',
+				'utf8Str':     'Příliš',
+				'num':         5,
+				'bool':        true,
+				'arr':         [42],
+				'colorMap':    {'red': 'rojo'},
+				'emptyString': '',
+				'emptyArray':  [],
+				'emptyMap':    {}
+			}""";
 
 	private static final StubMvcResult stubMvcResult;
 
@@ -50,7 +56,7 @@ public class JsonPathResultMatchersTests {
 		try {
 			MockHttpServletResponse response = new MockHttpServletResponse();
 			response.addHeader("Content-Type", "application/json");
-			response.getWriter().print(new String(RESPONSE_CONTENT.getBytes("ISO-8859-1")));
+			response.getOutputStream().write(RESPONSE_CONTENT.getBytes(UTF_8));
 			stubMvcResult = new StubMvcResult(null, null, null, null, null, null, response);
 		}
 		catch (Exception e) {
@@ -58,226 +64,257 @@ public class JsonPathResultMatchersTests {
 		}
 	}
 
-	@Test(expected = AssertionError.class)
-	public void valueWithMismatch() throws Exception {
-		new JsonPathResultMatchers("$.str").value("bogus").match(stubMvcResult);
+
+	@Test
+	void valueWithValueMismatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class)
+			.isThrownBy(() -> new JsonPathResultMatchers("$.str").value("bogus").match(stubMvcResult))
+			.withMessage("JSON path \"$.str\" expected:<bogus> but was:<foo>");
 	}
 
 	@Test
-	public void valueWithDirectMatch() throws Exception {
+	void valueWithTypeMismatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class)
+			.isThrownBy(() -> new JsonPathResultMatchers("$.str").value("bogus".getBytes()).match(stubMvcResult))
+			.withMessage("At JSON path \"$.str\", value <foo> of type <java.lang.String> cannot be converted to type <byte[]>");
+	}
+
+	@Test
+	void valueWithDirectMatch() throws Exception {
 		new JsonPathResultMatchers("$.str").value("foo").match(stubMvcResult);
 	}
 
+	@Test // gh-23219
+	void utf8ValueWithDirectMatch() throws Exception {
+		new JsonPathResultMatchers("$.utf8Str").value("Příliš").match(stubMvcResult);
+	}
+
 	@Test // SPR-16587
-	public void valueWithNumberConversion() throws Exception {
+	void valueWithNumberConversion() throws Exception {
 		new JsonPathResultMatchers("$.num").value(5.0f).match(stubMvcResult);
 	}
 
 	@Test
-	public void valueWithMatcher() throws Exception {
+	void valueWithMatcher() throws Exception {
 		new JsonPathResultMatchers("$.str").value(Matchers.equalTo("foo")).match(stubMvcResult);
 	}
 
 	@Test // SPR-16587
-	public void valueWithMatcherAndNumberConversion() throws Exception {
+	void valueWithMatcherAndNumberConversion() throws Exception {
 		new JsonPathResultMatchers("$.num").value(Matchers.equalTo(5.0f), Float.class).match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void valueWithMatcherAndMismatch() throws Exception {
-		new JsonPathResultMatchers("$.str").value(Matchers.equalTo("bogus")).match(stubMvcResult);
+	@Test
+	void valueWithMatcherAndMismatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").value(Matchers.equalTo("bogus")).match(stubMvcResult));
 	}
 
 	@Test
-	public void exists() throws Exception {
+	void exists() throws Exception {
 		new JsonPathResultMatchers("$.str").exists().match(stubMvcResult);
 	}
 
 	@Test
-	public void existsForAnEmptyArray() throws Exception {
+	void existsForAnEmptyArray() throws Exception {
 		new JsonPathResultMatchers("$.emptyArray").exists().match(stubMvcResult);
 	}
 
 	@Test
-	public void existsForAnEmptyMap() throws Exception {
+	void existsForAnEmptyMap() throws Exception {
 		new JsonPathResultMatchers("$.emptyMap").exists().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void existsNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.bogus").exists().match(stubMvcResult);
+	@Test
+	void existsNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.bogus").exists().match(stubMvcResult));
 	}
 
 	@Test
-	public void doesNotExist() throws Exception {
+	void doesNotExist() throws Exception {
 		new JsonPathResultMatchers("$.bogus").doesNotExist().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void doesNotExistNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.str").doesNotExist().match(stubMvcResult);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void doesNotExistForAnEmptyArray() throws Exception {
-		new JsonPathResultMatchers("$.emptyArray").doesNotExist().match(stubMvcResult);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void doesNotExistForAnEmptyMap() throws Exception {
-		new JsonPathResultMatchers("$.emptyMap").doesNotExist().match(stubMvcResult);
+	@Test
+	void doesNotExistNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").doesNotExist().match(stubMvcResult));
 	}
 
 	@Test
-	public void isEmptyForAnEmptyString() throws Exception {
+	void doesNotExistForAnEmptyArray() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.emptyArray").doesNotExist().match(stubMvcResult));
+	}
+
+	@Test
+	void doesNotExistForAnEmptyMap() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.emptyMap").doesNotExist().match(stubMvcResult));
+	}
+
+	@Test
+	void isEmptyForAnEmptyString() throws Exception {
 		new JsonPathResultMatchers("$.emptyString").isEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isEmptyForAnEmptyArray() throws Exception {
+	void isEmptyForAnEmptyArray() throws Exception {
 		new JsonPathResultMatchers("$.emptyArray").isEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isEmptyForAnEmptyMap() throws Exception {
+	void isEmptyForAnEmptyMap() throws Exception {
 		new JsonPathResultMatchers("$.emptyMap").isEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isNotEmptyForString() throws Exception {
+	void isNotEmptyForString() throws Exception {
 		new JsonPathResultMatchers("$.str").isNotEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isNotEmptyForNumber() throws Exception {
+	void isNotEmptyForNumber() throws Exception {
 		new JsonPathResultMatchers("$.num").isNotEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isNotEmptyForBoolean() throws Exception {
+	void isNotEmptyForBoolean() throws Exception {
 		new JsonPathResultMatchers("$.bool").isNotEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isNotEmptyForArray() throws Exception {
+	void isNotEmptyForArray() throws Exception {
 		new JsonPathResultMatchers("$.arr").isNotEmpty().match(stubMvcResult);
 	}
 
 	@Test
-	public void isNotEmptyForMap() throws Exception {
+	void isNotEmptyForMap() throws Exception {
 		new JsonPathResultMatchers("$.colorMap").isNotEmpty().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isNotEmptyForAnEmptyString() throws Exception {
-		new JsonPathResultMatchers("$.emptyString").isNotEmpty().match(stubMvcResult);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void isNotEmptyForAnEmptyArray() throws Exception {
-		new JsonPathResultMatchers("$.emptyArray").isNotEmpty().match(stubMvcResult);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void isNotEmptyForAnEmptyMap() throws Exception {
-		new JsonPathResultMatchers("$.emptyMap").isNotEmpty().match(stubMvcResult);
+	@Test
+	void isNotEmptyForAnEmptyString() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.emptyString").isNotEmpty().match(stubMvcResult));
 	}
 
 	@Test
-	public void isArray() throws Exception {
+	void isNotEmptyForAnEmptyArray() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.emptyArray").isNotEmpty().match(stubMvcResult));
+	}
+
+	@Test
+	void isNotEmptyForAnEmptyMap() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.emptyMap").isNotEmpty().match(stubMvcResult));
+	}
+
+	@Test
+	void isArray() throws Exception {
 		new JsonPathResultMatchers("$.arr").isArray().match(stubMvcResult);
 	}
 
 	@Test
-	public void isArrayForAnEmptyArray() throws Exception {
+	void isArrayForAnEmptyArray() throws Exception {
 		new JsonPathResultMatchers("$.emptyArray").isArray().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isArrayNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.bar").isArray().match(stubMvcResult);
+	@Test
+	void isArrayNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.bar").isArray().match(stubMvcResult));
 	}
 
 	@Test
-	public void isMap() throws Exception {
+	void isMap() throws Exception {
 		new JsonPathResultMatchers("$.colorMap").isMap().match(stubMvcResult);
 	}
 
 	@Test
-	public void isMapForAnEmptyMap() throws Exception {
+	void isMapForAnEmptyMap() throws Exception {
 		new JsonPathResultMatchers("$.emptyMap").isMap().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isMapNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.str").isMap().match(stubMvcResult);
+	@Test
+	void isMapNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").isMap().match(stubMvcResult));
 	}
 
 	@Test
-	public void isBoolean() throws Exception {
+	void isBoolean() throws Exception {
 		new JsonPathResultMatchers("$.bool").isBoolean().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isBooleanNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.str").isBoolean().match(stubMvcResult);
+	@Test
+	void isBooleanNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").isBoolean().match(stubMvcResult));
 	}
 
 	@Test
-	public void isNumber() throws Exception {
+	void isNumber() throws Exception {
 		new JsonPathResultMatchers("$.num").isNumber().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isNumberNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.str").isNumber().match(stubMvcResult);
+	@Test
+	void isNumberNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").isNumber().match(stubMvcResult));
 	}
 
 	@Test
-	public void isString() throws Exception {
+	void isString() throws Exception {
 		new JsonPathResultMatchers("$.str").isString().match(stubMvcResult);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void isStringNoMatch() throws Exception {
-		new JsonPathResultMatchers("$.arr").isString().match(stubMvcResult);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void valueWithJsonPrefixNotConfigured() throws Exception {
-		String jsonPrefix = "prefix";
-		StubMvcResult result = createPrefixedStubMvcResult(jsonPrefix);
-		new JsonPathResultMatchers("$.str").value("foo").match(result);
-	}
-
-	@Test(expected = AssertionError.class)
-	public void valueWithJsonWrongPrefix() throws Exception {
-		String jsonPrefix = "prefix";
-		StubMvcResult result = createPrefixedStubMvcResult(jsonPrefix);
-		new JsonPathResultMatchers("$.str").prefix("wrong").value("foo").match(result);
+	@Test
+	void isStringNoMatch() throws Exception {
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.arr").isString().match(stubMvcResult));
 	}
 
 	@Test
-	public void valueWithJsonPrefix() throws Exception {
+	void valueWithJsonPrefixNotConfigured() throws Exception {
+		String jsonPrefix = "prefix";
+		StubMvcResult result = createPrefixedStubMvcResult(jsonPrefix);
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").value("foo").match(result));
+	}
+
+	@Test
+	void valueWithJsonWrongPrefix() throws Exception {
+		String jsonPrefix = "prefix";
+		StubMvcResult result = createPrefixedStubMvcResult(jsonPrefix);
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").prefix("wrong").value("foo").match(result));
+	}
+
+	@Test
+	void valueWithJsonPrefix() throws Exception {
 		String jsonPrefix = "prefix";
 		StubMvcResult result = createPrefixedStubMvcResult(jsonPrefix);
 		new JsonPathResultMatchers("$.str").prefix(jsonPrefix).value("foo").match(result);
 	}
 
-	@Test(expected = AssertionError.class)
-	public void prefixWithPayloadNotLongEnough() throws Exception {
+	@Test
+	void prefixWithPayloadNotLongEnough() throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		response.addHeader("Content-Type", "application/json");
-		response.getWriter().print(new String("test".getBytes("ISO-8859-1")));
+		response.getWriter().print(new String("test".getBytes(ISO_8859_1)));
 		StubMvcResult result =  new StubMvcResult(null, null, null, null, null, null, response);
 
-		new JsonPathResultMatchers("$.str").prefix("prefix").value("foo").match(result);
+		assertThatExceptionOfType(AssertionError.class).isThrownBy(() ->
+				new JsonPathResultMatchers("$.str").prefix("prefix").value("foo").match(result));
 	}
 
 	private StubMvcResult createPrefixedStubMvcResult(String jsonPrefix) throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		response.addHeader("Content-Type", "application/json");
-		response.getWriter().print(jsonPrefix + new String(RESPONSE_CONTENT.getBytes("ISO-8859-1")));
+		response.getWriter().print(jsonPrefix + new String(RESPONSE_CONTENT.getBytes(ISO_8859_1)));
 		return new StubMvcResult(null, null, null, null, null, null, response);
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +18,10 @@ package org.springframework.web.servlet.mvc.method.annotation;
 
 import java.util.concurrent.CompletableFuture;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.core.MethodParameter;
-import org.springframework.mock.web.test.MockHttpServletRequest;
-import org.springframework.mock.web.test.MockHttpServletResponse;
-import org.springframework.util.concurrent.ListenableFuture;
-import org.springframework.util.concurrent.SettableListenableFuture;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.async.AsyncWebRequest;
@@ -33,9 +29,11 @@ import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.context.request.async.StandardServletAsyncWebRequest;
 import org.springframework.web.context.request.async.WebAsyncUtils;
 import org.springframework.web.method.support.ModelAndViewContainer;
+import org.springframework.web.testfixture.servlet.MockHttpServletRequest;
+import org.springframework.web.testfixture.servlet.MockHttpServletResponse;
 
-import static org.junit.Assert.*;
-import static org.springframework.web.method.ResolvableMethod.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.web.testfixture.method.ResolvableMethod.on;
 
 /**
  * Unit tests for {@link DeferredResultMethodReturnValueHandler}.
@@ -51,7 +49,7 @@ public class DeferredResultReturnValueHandlerTests {
 	private NativeWebRequest webRequest;
 
 
-	@Before
+	@BeforeEach
 	public void setup() throws Exception {
 		this.handler = new DeferredResultMethodReturnValueHandler();
 		this.request = new MockHttpServletRequest();
@@ -65,20 +63,21 @@ public class DeferredResultReturnValueHandlerTests {
 
 
 	@Test
+	@SuppressWarnings("deprecation")
 	public void supportsReturnType() throws Exception {
-		assertTrue(this.handler.supportsReturnType(
-				on(TestController.class).resolveReturnType(DeferredResult.class, String.class)));
+		assertThat(this.handler.supportsReturnType(
+				on(TestController.class).resolveReturnType(DeferredResult.class, String.class))).isTrue();
 
-		assertTrue(this.handler.supportsReturnType(
-				on(TestController.class).resolveReturnType(ListenableFuture.class, String.class)));
+		assertThat(this.handler.supportsReturnType(
+				on(TestController.class).resolveReturnType(org.springframework.util.concurrent.ListenableFuture.class, String.class))).isTrue();
 
-		assertTrue(this.handler.supportsReturnType(
-				on(TestController.class).resolveReturnType(CompletableFuture.class, String.class)));
+		assertThat(this.handler.supportsReturnType(
+				on(TestController.class).resolveReturnType(CompletableFuture.class, String.class))).isTrue();
 	}
 
 	@Test
 	public void doesNotSupportReturnType() throws Exception {
-		assertFalse(this.handler.supportsReturnType(on(TestController.class).resolveReturnType(String.class)));
+		assertThat(this.handler.supportsReturnType(on(TestController.class).resolveReturnType(String.class))).isFalse();
 	}
 
 	@Test
@@ -89,9 +88,12 @@ public class DeferredResultReturnValueHandlerTests {
 	}
 
 	@Test
+	@SuppressWarnings("deprecation")
 	public void listenableFuture() throws Exception {
-		SettableListenableFuture<String> future = new SettableListenableFuture<>();
-		testHandle(future, ListenableFuture.class, () -> future.set("foo"), "foo");
+		org.springframework.util.concurrent.SettableListenableFuture<String> future =
+				new org.springframework.util.concurrent.SettableListenableFuture<>();
+		testHandle(future, org.springframework.util.concurrent.ListenableFuture.class,
+				() -> future.set("foo"), "foo");
 	}
 
 	@Test
@@ -107,10 +109,13 @@ public class DeferredResultReturnValueHandlerTests {
 	}
 
 	@Test
+	@SuppressWarnings("deprecation")
 	public void listenableFutureWithError() throws Exception {
-		SettableListenableFuture<String> future = new SettableListenableFuture<>();
+		org.springframework.util.concurrent.SettableListenableFuture<String> future =
+				new org.springframework.util.concurrent.SettableListenableFuture<>();
 		IllegalStateException ex = new IllegalStateException();
-		testHandle(future, ListenableFuture.class, () -> future.setException(ex), ex);
+		testHandle(future, org.springframework.util.concurrent.ListenableFuture.class,
+				() -> future.setException(ex), ex);
 	}
 
 	@Test
@@ -128,13 +133,13 @@ public class DeferredResultReturnValueHandlerTests {
 		MethodParameter returnType = on(TestController.class).resolveReturnType(asyncType, String.class);
 		this.handler.handleReturnValue(returnValue, returnType, mavContainer, this.webRequest);
 
-		assertTrue(this.request.isAsyncStarted());
-		assertFalse(WebAsyncUtils.getAsyncManager(this.webRequest).hasConcurrentResult());
+		assertThat(this.request.isAsyncStarted()).isTrue();
+		assertThat(WebAsyncUtils.getAsyncManager(this.webRequest).hasConcurrentResult()).isFalse();
 
 		setResultTask.run();
 
-		assertTrue(WebAsyncUtils.getAsyncManager(this.webRequest).hasConcurrentResult());
-		assertEquals(expectedValue, WebAsyncUtils.getAsyncManager(this.webRequest).getConcurrentResult());
+		assertThat(WebAsyncUtils.getAsyncManager(this.webRequest).hasConcurrentResult()).isTrue();
+		assertThat(WebAsyncUtils.getAsyncManager(this.webRequest).getConcurrentResult()).isEqualTo(expectedValue);
 	}
 
 
@@ -145,7 +150,8 @@ public class DeferredResultReturnValueHandlerTests {
 
 		DeferredResult<String> handleDeferredResult() { return null; }
 
-		ListenableFuture<String> handleListenableFuture() { return null; }
+		@SuppressWarnings("deprecation")
+		org.springframework.util.concurrent.ListenableFuture<String> handleListenableFuture() { return null; }
 
 		CompletableFuture<String> handleCompletableFuture() { return null; }
 	}

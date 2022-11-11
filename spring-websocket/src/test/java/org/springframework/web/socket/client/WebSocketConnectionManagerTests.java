@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,13 @@
 package org.springframework.web.socket.client;
 
 import java.net.URI;
-import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.context.Lifecycle;
 import org.springframework.http.HttpHeaders;
-import org.springframework.util.concurrent.ListenableFuture;
-import org.springframework.util.concurrent.ListenableFutureTask;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
@@ -34,7 +32,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Test fixture for {@link WebSocketConnectionManager}.
@@ -46,7 +44,7 @@ public class WebSocketConnectionManagerTests {
 
 	@Test
 	public void openConnection() throws Exception {
-		List<String> subprotocols = Arrays.asList("abc");
+		List<String> subprotocols = List.of("abc");
 
 		TestLifecycleWebSocketClient client = new TestLifecycleWebSocketClient(false);
 		WebSocketHandler handler = new TextWebSocketHandler();
@@ -58,13 +56,13 @@ public class WebSocketConnectionManagerTests {
 		WebSocketHttpHeaders expectedHeaders = new WebSocketHttpHeaders();
 		expectedHeaders.setSecWebSocketProtocol(subprotocols);
 
-		assertEquals(expectedHeaders, client.headers);
-		assertEquals(new URI("/path/123"), client.uri);
+		assertThat(client.headers).isEqualTo(expectedHeaders);
+		assertThat(client.uri).isEqualTo(new URI("/path/123"));
 
 		WebSocketHandlerDecorator loggingHandler = (WebSocketHandlerDecorator) client.webSocketHandler;
-		assertEquals(LoggingWebSocketHandlerDecorator.class, loggingHandler.getClass());
+		assertThat(loggingHandler.getClass()).isEqualTo(LoggingWebSocketHandlerDecorator.class);
 
-		assertSame(handler, loggingHandler.getDelegate());
+		assertThat(loggingHandler.getDelegate()).isSameAs(handler);
 	}
 
 	@Test
@@ -74,10 +72,10 @@ public class WebSocketConnectionManagerTests {
 		WebSocketConnectionManager manager = new WebSocketConnectionManager(client, handler , "/a");
 
 		manager.startInternal();
-		assertTrue(client.isRunning());
+		assertThat(client.isRunning()).isTrue();
 
 		manager.stopInternal();
-		assertFalse(client.isRunning());
+		assertThat(client.isRunning()).isFalse();
 	}
 
 
@@ -112,21 +110,21 @@ public class WebSocketConnectionManagerTests {
 		}
 
 		@Override
-		public ListenableFuture<WebSocketSession> doHandshake(WebSocketHandler handler,
+		public CompletableFuture<WebSocketSession> execute(WebSocketHandler handler,
 				String uriTemplate, Object... uriVars) {
 
 			URI uri = UriComponentsBuilder.fromUriString(uriTemplate).buildAndExpand(uriVars).encode().toUri();
-			return doHandshake(handler, null, uri);
+			return execute(handler, null, uri);
 		}
 
 		@Override
-		public ListenableFuture<WebSocketSession> doHandshake(WebSocketHandler handler,
+		public CompletableFuture<WebSocketSession> execute(WebSocketHandler handler,
 				WebSocketHttpHeaders headers, URI uri) {
 
 			this.webSocketHandler = handler;
 			this.headers = headers;
 			this.uri = uri;
-			return new ListenableFutureTask<>(() -> null);
+			return CompletableFuture.supplyAsync(() -> null);
 		}
 	}
 

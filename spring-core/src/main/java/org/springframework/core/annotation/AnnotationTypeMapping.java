@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,14 +27,16 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import org.springframework.core.annotation.AnnotationTypeMapping.MirrorSets.MirrorSet;
 import org.springframework.lang.Nullable;
 import org.springframework.util.ObjectUtils;
-import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -48,14 +50,35 @@ import org.springframework.util.StringUtils;
  */
 final class AnnotationTypeMapping {
 
+	private static final Log logger = LogFactory.getLog(AnnotationTypeMapping.class);
+
+	private static final Predicate<? super Annotation> isBeanValidationConstraint = annotation ->
+			annotation.annotationType().getName().equals("jakarta.validation.Constraint");
+
+	/**
+	 * Set used to track which convention-based annotation attribute overrides
+	 * have already been checked. Each key is the combination of the fully
+	 * qualified class names of a composed annotation and a meta-annotation
+	 * that it is either present or meta-present on the composed annotation,
+	 * separated by a dash.
+	 * @since 6.0
+	 * @see #addConventionMappings()
+	 */
+	private static final Set<String> conventionBasedOverrideCheckCache = ConcurrentHashMap.newKeySet();
+
+	private static final MirrorSet[] EMPTY_MIRROR_SETS = new MirrorSet[0];
+
+
 	@Nullable
-	private final AnnotationTypeMapping parent;
+	private final AnnotationTypeMapping source;
 
 	private final AnnotationTypeMapping root;
 
-	private final int depth;
+	private final int distance;
 
 	private final Class<? extends Annotation> annotationType;
+
+	private final List<Class<? extends Annotation>> metaTypes;
 
 	@Nullable
 	private final Annotation annotation;
@@ -74,16 +97,21 @@ final class AnnotationTypeMapping {
 
 	private final Map<Method, List<Method>> aliasedBy;
 
+	private final boolean synthesizable;
+
 	private final Set<Method> claimedAliases = new HashSet<>();
 
 
-	AnnotationTypeMapping(@Nullable AnnotationTypeMapping parent,
+	AnnotationTypeMapping(@Nullable AnnotationTypeMapping source,
 			Class<? extends Annotation> annotationType, @Nullable Annotation annotation) {
 
-		this.parent = parent;
-		this.root = (parent != null ? parent.getRoot() : this);
-		this.depth = (parent == null ? 0 : parent.getDepth() + 1);
+		this.source = source;
+		this.root = (source != null ? source.getRoot() : this);
+		this.distance = (source == null ? 0 : source.getDistance() + 1);
 		this.annotationType = annotationType;
+		this.metaTypes = merge(
+				source != null ? source.getMetaTypes() : null,
+				annotationType);
 		this.annotation = annotation;
 		this.attributes = AttributeMethods.forAnnotationType(annotationType);
 		this.mirrorSets = new MirrorSets();
@@ -95,8 +123,19 @@ final class AnnotationTypeMapping {
 		processAliases();
 		addConventionMappings();
 		addConventionAnnotationValues();
+		this.synthesizable = computeSynthesizableFlag();
 	}
 
+
+	private static <T> List<T> merge(@Nullable List<T> existing, T element) {
+		if (existing == null) {
+			return Collections.singletonList(element);
+		}
+		List<T> merged = new ArrayList<>(existing.size() + 1);
+		merged.addAll(existing);
+		merged.add(element);
+		return Collections.unmodifiableList(merged);
+	}
 
 	private Map<Method, List<Method>> resolveAliasedForTargets() {
 		Map<Method, List<Method>> aliasedBy = new HashMap<>();
@@ -146,7 +185,7 @@ final class AnnotationTypeMapping {
 					StringUtils.capitalize(AttributeMethods.describe(attribute)),
 					AttributeMethods.describe(targetAnnotation, targetAttributeName)));
 		}
-		if (target == attribute) {
+		if (target.equals(attribute)) {
 			throw new AnnotationConfigurationException(String.format(
 					"@AliasFor declaration on %s points to itself. " +
 					"Specify 'annotation' to point to a same-named attribute on a meta-annotation.",
@@ -160,30 +199,25 @@ final class AnnotationTypeMapping {
 		}
 		if (isAliasPair(target) && checkAliasPair) {
 			AliasFor targetAliasFor = target.getAnnotation(AliasFor.class);
-			if (targetAliasFor == null) {
-				throw new AnnotationConfigurationException(String.format(
-						"%s must be declared as an @AliasFor '%s'.",
-						StringUtils.capitalize(AttributeMethods.describe(target)),
-						attribute.getName()));
-			}
-			Method mirror = resolveAliasTarget(target, targetAliasFor, false);
-			if (mirror != attribute) {
-				throw new AnnotationConfigurationException(String.format(
-						"%s must be declared as an @AliasFor '%s', not '%s'.",
-						StringUtils.capitalize(AttributeMethods.describe(target)),
-						attribute.getName(), mirror.getName()));
+			if (targetAliasFor != null) {
+				Method mirror = resolveAliasTarget(target, targetAliasFor, false);
+				if (!mirror.equals(attribute)) {
+					throw new AnnotationConfigurationException(String.format(
+							"%s must be declared as an @AliasFor %s, not %s.",
+							StringUtils.capitalize(AttributeMethods.describe(target)),
+							AttributeMethods.describe(attribute), AttributeMethods.describe(mirror)));
+				}
 			}
 		}
 		return target;
 	}
 
 	private boolean isAliasPair(Method target) {
-		return target.getDeclaringClass().equals(this.annotationType);
+		return (this.annotationType == target.getDeclaringClass());
 	}
 
 	private boolean isCompatibleReturnType(Class<?> attributeType, Class<?> targetType) {
-		return Objects.equals(attributeType, targetType) ||
-				Objects.equals(attributeType, targetType.getComponentType());
+		return (attributeType == targetType || attributeType == targetType.getComponentType());
 	}
 
 	private void processAliases() {
@@ -208,7 +242,7 @@ final class AnnotationTypeMapping {
 					aliases.addAll(additional);
 				}
 			}
-			mapping = mapping.parent;
+			mapping = mapping.source;
 		}
 	}
 
@@ -227,7 +261,7 @@ final class AnnotationTypeMapping {
 			mapping.claimedAliases.addAll(aliases);
 			if (mapping.annotation != null) {
 				int[] resolvedMirrors = mapping.mirrorSets.resolve(null,
-						mapping.annotation, ReflectionUtils::invokeMethod);
+						mapping.annotation, AnnotationUtils::invokeAnnotationMethod);
 				for (int i = 0; i < mapping.attributes.size(); i++) {
 					if (aliases.contains(mapping.attributes.get(i))) {
 						this.annotationValueMappings[attributeIndex] = resolvedMirrors[i];
@@ -235,7 +269,7 @@ final class AnnotationTypeMapping {
 					}
 				}
 			}
-			mapping = mapping.parent;
+			mapping = mapping.source;
 		}
 	}
 
@@ -250,17 +284,19 @@ final class AnnotationTypeMapping {
 	}
 
 	private void addConventionMappings() {
-		if (this.depth == 0) {
+		if (this.distance == 0) {
 			return;
 		}
 		AttributeMethods rootAttributes = this.root.getAttributes();
 		int[] mappings = this.conventionMappings;
+		Set<String> conventionMappedAttributes = new HashSet<>();
 		for (int i = 0; i < mappings.length; i++) {
 			String name = this.attributes.get(i).getName();
-			MirrorSet mirrors = getMirrorSets().getAssigned(i);
 			int mapped = rootAttributes.indexOf(name);
-			if (!MergedAnnotation.VALUE.equals(name) && mapped != -1) {
+			if (!MergedAnnotation.VALUE.equals(name) && mapped != -1 && !isExplicitAttributeOverride(name)) {
+				conventionMappedAttributes.add(name);
 				mappings[i] = mapped;
+				MirrorSet mirrors = getMirrorSets().getAssigned(i);
 				if (mirrors != null) {
 					for (int j = 0; j < mirrors.size(); j++) {
 						mappings[mirrors.getAttributeIndex(j)] = mapped;
@@ -268,6 +304,46 @@ final class AnnotationTypeMapping {
 				}
 			}
 		}
+		String rootAnnotationTypeName = this.root.annotationType.getName();
+		String cacheKey = rootAnnotationTypeName + '-' + this.annotationType.getName();
+		// We want to avoid duplicate log warnings as much as possible, without full synchronization,
+		// and we intentionally invoke add() before checking if any convention-based overrides were
+		// actually encountered in order to ensure that we add a "tracked" entry for the current cache
+		// key in any case.
+		// In addition, we do NOT want to log warnings for custom Java Bean Validation constraint
+		// annotations that are meta-annotated with other constraint annotations -- for example,
+		// @org.hibernate.validator.constraints.URL which overrides attributes in
+		// @jakarta.validation.constraints.Pattern.
+		if (conventionBasedOverrideCheckCache.add(cacheKey) && !conventionMappedAttributes.isEmpty() &&
+				Arrays.stream(this.annotationType.getAnnotations()).noneMatch(isBeanValidationConstraint) &&
+				logger.isWarnEnabled()) {
+			logger.warn("""
+					Support for convention-based annotation attribute overrides is deprecated \
+					and will be removed in Spring Framework 6.1. Please annotate the following \
+					attributes in @%s with appropriate @AliasFor declarations: %s"""
+						.formatted(rootAnnotationTypeName, conventionMappedAttributes));
+		}
+	}
+
+	/**
+	 * Determine if the given annotation attribute in the {@linkplain #getRoot()
+	 * root annotation} is an explicit annotation attribute override for an
+	 * attribute in a meta-annotation, explicit in the sense that the override
+	 * is declared via {@link AliasFor @AliasFor}.
+	 * <p>If the named attribute does not exist in the root annotation, this
+	 * method returns {@code false}.
+	 * @param name the name of the annotation attribute to check
+	 * @since 6.0
+	 */
+	private boolean isExplicitAttributeOverride(String name) {
+		Method attribute = this.root.getAttributes().get(name);
+		if (attribute != null) {
+			AliasFor aliasFor = AnnotationsScanner.getDeclaredAnnotation(attribute, AliasFor.class);
+			return ((aliasFor != null) &&
+					(aliasFor.annotation() != Annotation.class) &&
+					(aliasFor.annotation() != this.root.annotationType));
+		}
+		return false;
 	}
 
 	private void addConventionAnnotationValues() {
@@ -275,24 +351,66 @@ final class AnnotationTypeMapping {
 			Method attribute = this.attributes.get(i);
 			boolean isValueAttribute = MergedAnnotation.VALUE.equals(attribute.getName());
 			AnnotationTypeMapping mapping = this;
-			while (mapping != null && mapping.depth > 0) {
+			while (mapping != null && mapping.distance > 0) {
 				int mapped = mapping.getAttributes().indexOf(attribute.getName());
-				if (mapped != -1  && isBetterConventionAnnotationValue(i, isValueAttribute, mapping)) {
+				if (mapped != -1 && isBetterConventionAnnotationValue(i, isValueAttribute, mapping)) {
 					this.annotationValueMappings[i] = mapped;
 					this.annotationValueSource[i] = mapping;
 				}
-				mapping = mapping.parent;
+				mapping = mapping.source;
 			}
 		}
 	}
 
 	private boolean isBetterConventionAnnotationValue(int index, boolean isValueAttribute,
 			AnnotationTypeMapping mapping) {
+
 		if (this.annotationValueMappings[index] == -1) {
 			return true;
 		}
-		int existingDepth = this.annotationValueSource[index].depth;
-		return !isValueAttribute && existingDepth > mapping.depth;
+		int existingDistance = this.annotationValueSource[index].distance;
+		return !isValueAttribute && existingDistance > mapping.distance;
+	}
+
+	@SuppressWarnings("unchecked")
+	private boolean computeSynthesizableFlag() {
+		// Uses @AliasFor for local aliases?
+		for (int index : this.aliasMappings) {
+			if (index != -1) {
+				return true;
+			}
+		}
+
+		// Uses @AliasFor for attribute overrides in meta-annotations?
+		if (!this.aliasedBy.isEmpty()) {
+			return true;
+		}
+
+		// Uses convention-based attribute overrides in meta-annotations?
+		for (int index : this.conventionMappings) {
+			if (index != -1) {
+				return true;
+			}
+		}
+
+		// Has nested annotations or arrays of annotations that are synthesizable?
+		if (getAttributes().hasNestedAnnotation()) {
+			AttributeMethods attributeMethods = getAttributes();
+			for (int i = 0; i < attributeMethods.size(); i++) {
+				Method method = attributeMethods.get(i);
+				Class<?> type = method.getReturnType();
+				if (type.isAnnotation() || (type.isArray() && type.getComponentType().isAnnotation())) {
+					Class<? extends Annotation> annotationType =
+							(Class<? extends Annotation>) (type.isAnnotation() ? type : type.getComponentType());
+					AnnotationTypeMapping mapping = AnnotationTypeMappings.forAnnotationType(annotationType).get(0);
+					if (mapping.isSynthesizable()) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -348,20 +466,20 @@ final class AnnotationTypeMapping {
 	}
 
 	/**
-	 * Get the parent mapping or {@code null}.
-	 * @return the parent mapping
+	 * Get the source of the mapping or {@code null}.
+	 * @return the source of the mapping
 	 */
 	@Nullable
-	AnnotationTypeMapping getParent() {
-		return this.parent;
+	AnnotationTypeMapping getSource() {
+		return this.source;
 	}
 
 	/**
-	 * Get the depth of this mapping.
-	 * @return the depth of the mapping
+	 * Get the distance of this mapping.
+	 * @return the distance of the mapping
 	 */
-	int getDepth() {
-		return this.depth;
+	int getDistance() {
+		return this.distance;
 	}
 
 	/**
@@ -370,6 +488,10 @@ final class AnnotationTypeMapping {
 	 */
 	Class<? extends Annotation> getAnnotationType() {
 		return this.annotationType;
+	}
+
+	List<Class<? extends Annotation>> getMetaTypes() {
+		return this.metaTypes;
 	}
 
 	/**
@@ -416,21 +538,27 @@ final class AnnotationTypeMapping {
 
 	/**
 	 * Get a mapped attribute value from the most suitable
-	 * {@link #getAnnotation() meta-annotation}. The resulting value is obtained
-	 * from the closest meta-annotation, taking into consideration both
-	 * convention and alias based mapping rules. For root mappings, this method
-	 * will always return {@code null}.
+	 * {@link #getAnnotation() meta-annotation}.
+	 * <p>The resulting value is obtained from the closest meta-annotation,
+	 * taking into consideration both convention and alias based mapping rules.
+	 * For root mappings, this method will always return {@code null}.
 	 * @param attributeIndex the attribute index of the source attribute
+	 * @param metaAnnotationsOnly if only meta annotations should be considered.
+	 * If this parameter is {@code false} then aliases within the annotation will
+	 * also be considered.
 	 * @return the mapped annotation value, or {@code null}
 	 */
 	@Nullable
-	Object getMappedAnnotationValue(int attributeIndex) {
-		int mapped = this.annotationValueMappings[attributeIndex];
-		if (mapped == -1) {
+	Object getMappedAnnotationValue(int attributeIndex, boolean metaAnnotationsOnly) {
+		int mappedIndex = this.annotationValueMappings[attributeIndex];
+		if (mappedIndex == -1) {
 			return null;
 		}
 		AnnotationTypeMapping source = this.annotationValueSource[attributeIndex];
-		return ReflectionUtils.invokeMethod(source.attributes.get(mapped), source.annotation);
+		if (source == this && metaAnnotationsOnly) {
+			return null;
+		}
+		return AnnotationUtils.invokeAnnotationMethod(source.attributes.get(mappedIndex), source.annotation);
 	}
 
 	/**
@@ -438,23 +566,32 @@ final class AnnotationTypeMapping {
 	 * attribute at the given index.
 	 * @param attributeIndex the attribute index of the source attribute
 	 * @param value the value to check
-	 * @param valueExtractor the value extractor used to extract value from any
+	 * @param valueExtractor the value extractor used to extract values from any
 	 * nested annotations
 	 * @return {@code true} if the value is equivalent to the default value
 	 */
-	boolean isEquivalentToDefaultValue(int attributeIndex, Object value,
-			BiFunction<Method, Object, Object> valueExtractor) {
-
+	boolean isEquivalentToDefaultValue(int attributeIndex, Object value, ValueExtractor valueExtractor) {
 		Method attribute = this.attributes.get(attributeIndex);
 		return isEquivalentToDefaultValue(attribute, value, valueExtractor);
 	}
 
 	/**
 	 * Get the mirror sets for this type mapping.
-	 * @return the mirrorSets the attribute mirror sets.
+	 * @return the attribute mirror sets
 	 */
 	MirrorSets getMirrorSets() {
 		return this.mirrorSets;
+	}
+
+	/**
+	 * Determine if the mapped annotation is <em>synthesizable</em>.
+	 * <p>Consult the documentation for {@link MergedAnnotation#synthesize()}
+	 * for an explanation of what is considered synthesizable.
+	 * @return {@code true} if the mapped annotation is synthesizable
+	 * @since 5.2.6
+	 */
+	boolean isSynthesizable() {
+		return this.synthesizable;
 	}
 
 
@@ -465,25 +602,25 @@ final class AnnotationTypeMapping {
 	}
 
 	private static boolean isEquivalentToDefaultValue(Method attribute, Object value,
-			BiFunction<Method, Object, Object> valueExtractor) {
+			ValueExtractor valueExtractor) {
 
 		return areEquivalent(attribute.getDefaultValue(), value, valueExtractor);
 	}
 
 	private static boolean areEquivalent(@Nullable Object value, @Nullable Object extractedValue,
-			BiFunction<Method, Object, Object> valueExtractor) {
+			ValueExtractor valueExtractor) {
 
 		if (ObjectUtils.nullSafeEquals(value, extractedValue)) {
 			return true;
 		}
-		if (value instanceof Class && extractedValue instanceof String) {
-			return areEquivalent((Class<?>) value, (String) extractedValue);
+		if (value instanceof Class<?> clazz && extractedValue instanceof String string) {
+			return areEquivalent(clazz, string);
 		}
-		if (value instanceof Class[] && extractedValue instanceof String[]) {
-			return areEquivalent((Class[]) value, (String[]) extractedValue);
+		if (value instanceof Class<?>[] classes && extractedValue instanceof String[] strings) {
+			return areEquivalent(classes, strings);
 		}
-		if (value instanceof Annotation) {
-			return areEquivalent((Annotation) value, extractedValue, valueExtractor);
+		if (value instanceof Annotation annotation) {
+			return areEquivalent(annotation, extractedValue, valueExtractor);
 		}
 		return false;
 	}
@@ -504,14 +641,21 @@ final class AnnotationTypeMapping {
 		return value.getName().equals(extractedValue);
 	}
 
-	private static boolean areEquivalent(Annotation value, @Nullable Object extractedValue,
-			BiFunction<Method, Object, Object> valueExtractor) {
+	private static boolean areEquivalent(Annotation annotation, @Nullable Object extractedValue,
+			ValueExtractor valueExtractor) {
 
-		AttributeMethods attributes = AttributeMethods.forAnnotationType(value.annotationType());
+		AttributeMethods attributes = AttributeMethods.forAnnotationType(annotation.annotationType());
 		for (int i = 0; i < attributes.size(); i++) {
 			Method attribute = attributes.get(i);
-			if (!areEquivalent(ReflectionUtils.invokeMethod(attribute, value),
-					valueExtractor.apply(attribute, extractedValue), valueExtractor)) {
+			Object value1 = AnnotationUtils.invokeAnnotationMethod(attribute, annotation);
+			Object value2;
+			if (extractedValue instanceof TypeMappedAnnotation<?> typeMappedAnnotation) {
+				value2 = typeMappedAnnotation.getValue(attribute.getName()).orElse(null);
+			}
+			else {
+				value2 = valueExtractor.extract(attribute, extractedValue);
+			}
+			if (!areEquivalent(value1, value2, valueExtractor)) {
 				return false;
 			}
 		}
@@ -531,7 +675,7 @@ final class AnnotationTypeMapping {
 
 		MirrorSets() {
 			this.assigned = new MirrorSet[attributes.size()];
-			this.mirrorSets = new MirrorSet[0];
+			this.mirrorSets = EMPTY_MIRROR_SETS;
 		}
 
 		void updateFrom(Collection<Method> aliases) {
@@ -556,7 +700,7 @@ final class AnnotationTypeMapping {
 				mirrorSet.update();
 				Set<MirrorSet> unique = new LinkedHashSet<>(Arrays.asList(this.assigned));
 				unique.remove(null);
-				this.mirrorSets = unique.toArray(new MirrorSet[0]);
+				this.mirrorSets = unique.toArray(EMPTY_MIRROR_SETS);
 			}
 		}
 
@@ -573,9 +717,7 @@ final class AnnotationTypeMapping {
 			return this.assigned[attributeIndex];
 		}
 
-		int[] resolve(@Nullable Object source, @Nullable Object annotation,
-				BiFunction<Method, Object, Object> valueExtractor) {
-
+		int[] resolve(@Nullable Object source, @Nullable Object annotation, ValueExtractor valueExtractor) {
 			int[] result = new int[attributes.size()];
 			for (int i = 0; i < result.length; i++) {
 				result[i] = i;
@@ -611,24 +753,24 @@ final class AnnotationTypeMapping {
 				}
 			}
 
-			<A> int resolve(@Nullable Object source, @Nullable A annotation,
-					BiFunction<Method, Object, Object> valueExtractor) {
-
+			<A> int resolve(@Nullable Object source, @Nullable A annotation, ValueExtractor valueExtractor) {
 				int result = -1;
 				Object lastValue = null;
 				for (int i = 0; i < this.size; i++) {
 					Method attribute = attributes.get(this.indexes[i]);
-					Object value = valueExtractor.apply(attribute, annotation);
+					Object value = valueExtractor.extract(attribute, annotation);
 					boolean isDefaultValue = (value == null ||
 							isEquivalentToDefaultValue(attribute, value, valueExtractor));
 					if (isDefaultValue || ObjectUtils.nullSafeEquals(lastValue, value)) {
+						if (result == -1) {
+							result = this.indexes[i];
+						}
 						continue;
 					}
-					if (lastValue != null &&
-							!ObjectUtils.nullSafeEquals(lastValue, value)) {
+					if (lastValue != null && !ObjectUtils.nullSafeEquals(lastValue, value)) {
 						String on = (source != null) ? " declared on " + source : "";
 						throw new AnnotationConfigurationException(String.format(
-								"Different @AliasFor mirror values for annotation [%s]%s, attribute '%s' " +
+								"Different @AliasFor mirror values for annotation [%s]%s; attribute '%s' " +
 								"and its alias '%s' are declared with values of [%s] and [%s].",
 								getAnnotationType().getName(), on,
 								attributes.get(result).getName(),

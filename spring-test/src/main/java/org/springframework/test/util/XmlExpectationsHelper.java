@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.test.util;
 
 import java.io.StringReader;
 import java.util.Map;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Source;
@@ -81,7 +82,7 @@ public class XmlExpectationsHelper {
 	public void assertXmlEqual(String expected, String actual) throws Exception {
 		XmlUnitDiff diff = new XmlUnitDiff(expected, actual);
 		if (diff.hasDifferences()) {
-			AssertionErrors.fail("Body content " + diff.toString());
+			AssertionErrors.fail("Body content " + diff);
 		}
 	}
 

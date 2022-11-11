@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package org.springframework.http.codec;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
@@ -30,6 +29,7 @@ import reactor.core.publisher.Mono;
 
 import org.springframework.core.ResolvableType;
 import org.springframework.core.codec.Hints;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.log.LogFormatUtils;
 import org.springframework.http.MediaType;
@@ -62,6 +62,8 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 
 	private Charset defaultCharset = DEFAULT_CHARSET;
 
+	private int maxInMemorySize = 256 * 1024;
+
 
 	/**
 	 * Set the default character set to use for reading form data when the
@@ -78,6 +80,26 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 	 */
 	public Charset getDefaultCharset() {
 		return this.defaultCharset;
+	}
+
+	/**
+	 * Set the max number of bytes for input form data. As form data is buffered
+	 * before it is parsed, this helps to limit the amount of buffering. Once
+	 * the limit is exceeded, {@link DataBufferLimitException} is raised.
+	 * <p>By default this is set to 256K.
+	 * @param byteCount the max number of bytes to buffer, or -1 for unlimited
+	 * @since 5.1.11
+	 */
+	public void setMaxInMemorySize(int byteCount) {
+		this.maxInMemorySize = byteCount;
+	}
+
+	/**
+	 * Return the {@link #setMaxInMemorySize configured} byte count limit.
+	 * @since 5.1.11
+	 */
+	public int getMaxInMemorySize() {
+		return this.maxInMemorySize;
 	}
 
 
@@ -105,9 +127,9 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 		MediaType contentType = message.getHeaders().getContentType();
 		Charset charset = getMediaTypeCharset(contentType);
 
-		return DataBufferUtils.join(message.getBody())
+		return DataBufferUtils.join(message.getBody(), this.maxInMemorySize)
 				.map(buffer -> {
-					CharBuffer charBuffer = charset.decode(buffer.asByteBuffer());
+					CharBuffer charBuffer = charset.decode(buffer.toByteBuffer());
 					String body = charBuffer.toString();
 					DataBufferUtils.release(buffer);
 					MultiValueMap<String, String> formData = parseFormData(charset, body);
@@ -135,21 +157,16 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 	private MultiValueMap<String, String> parseFormData(Charset charset, String body) {
 		String[] pairs = StringUtils.tokenizeToStringArray(body, "&");
 		MultiValueMap<String, String> result = new LinkedMultiValueMap<>(pairs.length);
-		try {
-			for (String pair : pairs) {
-				int idx = pair.indexOf('=');
-				if (idx == -1) {
-					result.add(URLDecoder.decode(pair, charset.name()), null);
-				}
-				else {
-					String name = URLDecoder.decode(pair.substring(0, idx),  charset.name());
-					String value = URLDecoder.decode(pair.substring(idx + 1), charset.name());
-					result.add(name, value);
-				}
+		for (String pair : pairs) {
+			int idx = pair.indexOf('=');
+			if (idx == -1) {
+				result.add(URLDecoder.decode(pair, charset), null);
 			}
-		}
-		catch (UnsupportedEncodingException ex) {
-			throw new IllegalStateException(ex);
+			else {
+				String name = URLDecoder.decode(pair.substring(0, idx),  charset);
+				String value = URLDecoder.decode(pair.substring(idx + 1), charset);
+				result.add(name, value);
+			}
 		}
 		return result;
 	}

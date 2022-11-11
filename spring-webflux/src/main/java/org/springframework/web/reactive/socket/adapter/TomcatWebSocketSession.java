@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@
 package org.springframework.web.reactive.socket.adapter;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import javax.websocket.Session;
 
+import jakarta.websocket.Session;
 import org.apache.tomcat.websocket.WsSession;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Sinks;
 
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.web.reactive.socket.HandshakeInfo;
@@ -28,7 +28,7 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 
 /**
  * Spring {@link WebSocketSession} adapter for Tomcat's
- * {@link javax.websocket.Session}.
+ * {@link jakarta.websocket.Session}.
  *
  * @author Violeta Georgieva
  * @since 5.0
@@ -47,9 +47,9 @@ public class TomcatWebSocketSession extends StandardWebSocketSession {
 	}
 
 	public TomcatWebSocketSession(Session session, HandshakeInfo info, DataBufferFactory factory,
-			MonoProcessor<Void> completionMono) {
+			Sinks.Empty<Void> completionSink) {
 
-		super(session, info, factory, completionMono);
+		super(session, info, factory, completionSink);
 		suspendReceiving();
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,12 +57,13 @@ public final class GenericTypeResolver {
 	 * @param methodParameter the method parameter specification
 	 * @param implementationClass the class to resolve type variables against
 	 * @return the corresponding generic parameter or return type
+	 * @deprecated since 5.2 in favor of {@code methodParameter.withContainingClass(implementationClass).getParameterType()}
 	 */
+	@Deprecated
 	public static Class<?> resolveParameterType(MethodParameter methodParameter, Class<?> implementationClass) {
 		Assert.notNull(methodParameter, "MethodParameter must not be null");
 		Assert.notNull(implementationClass, "Class must not be null");
 		methodParameter.setContainingClass(implementationClass);
-		ResolvableType.resolveMethodParameter(methodParameter);
 		return methodParameter.getParameterType();
 	}
 
@@ -153,9 +154,9 @@ public final class GenericTypeResolver {
 	 */
 	public static Type resolveType(Type genericType, @Nullable Class<?> contextClass) {
 		if (contextClass != null) {
-			if (genericType instanceof TypeVariable) {
+			if (genericType instanceof TypeVariable<?> typeVariable) {
 				ResolvableType resolvedTypeVariable = resolveVariable(
-						(TypeVariable<?>) genericType, ResolvableType.forClass(contextClass));
+						typeVariable, ResolvableType.forClass(contextClass));
 				if (resolvedTypeVariable != ResolvableType.NONE) {
 					Class<?> resolved = resolvedTypeVariable.resolve();
 					if (resolved != null) {
@@ -163,17 +164,17 @@ public final class GenericTypeResolver {
 					}
 				}
 			}
-			else if (genericType instanceof ParameterizedType) {
+			else if (genericType instanceof ParameterizedType parameterizedType) {
 				ResolvableType resolvedType = ResolvableType.forType(genericType);
 				if (resolvedType.hasUnresolvableGenerics()) {
-					ParameterizedType parameterizedType = (ParameterizedType) genericType;
 					Class<?>[] generics = new Class<?>[parameterizedType.getActualTypeArguments().length];
 					Type[] typeArguments = parameterizedType.getActualTypeArguments();
+					ResolvableType contextType = ResolvableType.forClass(contextClass);
 					for (int i = 0; i < typeArguments.length; i++) {
 						Type typeArgument = typeArguments[i];
 						if (typeArgument instanceof TypeVariable) {
 							ResolvableType resolvedTypeArgument = resolveVariable(
-									(TypeVariable<?>) typeArgument, ResolvableType.forClass(contextClass));
+									(TypeVariable<?>) typeArgument, contextType);
 							if (resolvedTypeArgument != ResolvableType.NONE) {
 								generics[i] = resolvedTypeArgument.resolve();
 							}
@@ -198,8 +199,12 @@ public final class GenericTypeResolver {
 	private static ResolvableType resolveVariable(TypeVariable<?> typeVariable, ResolvableType contextType) {
 		ResolvableType resolvedType;
 		if (contextType.hasGenerics()) {
-			resolvedType = ResolvableType.forType(typeVariable, contextType);
-			if (resolvedType.resolve() != null) {
+			ResolvableType.VariableResolver variableResolver = contextType.asVariableResolver();
+			if (variableResolver == null) {
+				return ResolvableType.NONE;
+			}
+			resolvedType = variableResolver.resolveVariable(typeVariable);
+			if (resolvedType != null) {
 				return resolvedType;
 			}
 		}
@@ -207,13 +212,13 @@ public final class GenericTypeResolver {
 		ResolvableType superType = contextType.getSuperType();
 		if (superType != ResolvableType.NONE) {
 			resolvedType = resolveVariable(typeVariable, superType);
-			if (resolvedType.resolve() != null) {
+			if (resolvedType != ResolvableType.NONE) {
 				return resolvedType;
 			}
 		}
 		for (ResolvableType ifc : contextType.getInterfaces()) {
 			resolvedType = resolveVariable(typeVariable, ifc);
-			if (resolvedType.resolve() != null) {
+			if (resolvedType != ResolvableType.NONE) {
 				return resolvedType;
 			}
 		}
@@ -235,7 +240,7 @@ public final class GenericTypeResolver {
 	/**
 	 * Build a mapping of {@link TypeVariable#getName TypeVariable names} to
 	 * {@link Class concrete classes} for the specified {@link Class}.
-	 * Searches all super types, enclosing types and interfaces.
+	 * Searches all supertypes, enclosing types and interfaces.
 	 * @see #resolveType(Type, Map)
 	 */
 	@SuppressWarnings("rawtypes")

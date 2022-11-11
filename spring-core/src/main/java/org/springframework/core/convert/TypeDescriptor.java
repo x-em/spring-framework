@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
 
 /**
- * Context about a type to convert from or to.
+ * Contextual descriptor about a type to convert from or to.
+ * <p>Capable of representing arrays and generic collection types.
  *
  * @author Keith Donald
  * @author Andy Clement
@@ -45,6 +46,8 @@ import org.springframework.util.ObjectUtils;
  * @author Sam Brannen
  * @author Stephane Nicoll
  * @since 3.0
+ * @see ConversionService#canConvert(TypeDescriptor, TypeDescriptor)
+ * @see ConversionService#convert(Object, TypeDescriptor, TypeDescriptor)
  */
 @SuppressWarnings("serial")
 public class TypeDescriptor implements Serializable {
@@ -194,7 +197,7 @@ public class TypeDescriptor implements Serializable {
 	/**
 	 * Cast this {@link TypeDescriptor} to a superclass or implemented interface
 	 * preserving annotations and nested type context.
-	 * @param superType the super type to cast to (can be {@code null})
+	 * @param superType the supertype to cast to (can be {@code null})
 	 * @return a new TypeDescriptor for the up-cast type
 	 * @throws IllegalArgumentException if this type is not assignable to the super-type
 	 * @since 3.2
@@ -235,7 +238,7 @@ public class TypeDescriptor implements Serializable {
 	 * <p>As of Spring Framework 4.2, this method supports arbitrary levels
 	 * of meta-annotations.
 	 * @param annotationType the annotation type
-	 * @return <tt>true</tt> if the annotation is present
+	 * @return {@code true} if the annotation is present
 	 */
 	public boolean hasAnnotation(Class<? extends Annotation> annotationType) {
 		if (this.annotatedElement.isEmpty()) {
@@ -270,8 +273,8 @@ public class TypeDescriptor implements Serializable {
 	 * On the other hand, {@code valueOf(Number.class).isAssignableTo(valueOf(Integer.class))}
 	 * returns {@code false} because, while all Integers are Numbers, not all Numbers are Integers.
 	 * <p>For arrays, collections, and maps, element and key/value types are checked if declared.
-	 * For example, a List&lt;String&gt; field value is assignable to a Collection&lt;CharSequence&gt;
-	 * field, but List&lt;Number&gt; is not assignable to List&lt;Integer&gt;.
+	 * For example, a {@code List<String>} field value is assignable to a {@code Collection<CharSequence>}
+	 * field, but {@code List<Number>} is not assignable to {@code List<Integer>}.
 	 * @return {@code true} if this type is assignable to the type represented by the provided
 	 * type descriptor
 	 * @see #getObjectType()
@@ -322,9 +325,9 @@ public class TypeDescriptor implements Serializable {
 	 * If this type is a {@code Stream}, returns the stream's component type.
 	 * If this type is a {@link Collection} and it is parameterized, returns the Collection's element type.
 	 * If the Collection is not parameterized, returns {@code null} indicating the element type is not declared.
-	 * @return the array component type or Collection element type, or {@code null} if this type is a
-	 * Collection but its element type is not parameterized
-	 * @throws IllegalStateException if this type is not a {@code java.util.Collection} or array type
+	 * @return the array component type or Collection element type, or {@code null} if this type is not
+	 * an array type or a {@code java.util.Collection} or if its element type is not parameterized
+	 * @see #elementTypeDescriptor(Object)
 	 */
 	@Nullable
 	public TypeDescriptor getElementTypeDescriptor() {
@@ -338,21 +341,20 @@ public class TypeDescriptor implements Serializable {
 	}
 
 	/**
-	 * If this type is a {@link Collection} or an array, creates a element TypeDescriptor
+	 * If this type is a {@link Collection} or an array, creates an element TypeDescriptor
 	 * from the provided collection or array element.
 	 * <p>Narrows the {@link #getElementTypeDescriptor() elementType} property to the class
 	 * of the provided collection or array element. For example, if this describes a
-	 * {@code java.util.List&lt;java.lang.Number&lt;} and the element argument is an
+	 * {@code java.util.List<java.lang.Number>} and the element argument is a
 	 * {@code java.lang.Integer}, the returned TypeDescriptor will be {@code java.lang.Integer}.
-	 * If this describes a {@code java.util.List&lt;?&gt;} and the element argument is an
+	 * If this describes a {@code java.util.List<?>} and the element argument is a
 	 * {@code java.lang.Integer}, the returned TypeDescriptor will be {@code java.lang.Integer}
 	 * as well.
 	 * <p>Annotation and nested type context will be preserved in the narrowed
 	 * TypeDescriptor that is returned.
 	 * @param element the collection or array element
-	 * @return a element type descriptor, narrowed to the type of the provided element
-	 * @throws IllegalStateException if this type is not a {@code java.util.Collection}
-	 * or array type
+	 * @return an element type descriptor, narrowed to the type of the provided element
+	 * @see #getElementTypeDescriptor()
 	 * @see #narrow(Object)
 	 */
 	@Nullable
@@ -386,9 +388,9 @@ public class TypeDescriptor implements Serializable {
 	 * from the provided map key.
 	 * <p>Narrows the {@link #getMapKeyTypeDescriptor() mapKeyType} property
 	 * to the class of the provided map key. For example, if this describes a
-	 * {@code java.util.Map&lt;java.lang.Number, java.lang.String&lt;} and the key
+	 * {@code java.util.Map<java.lang.Number, java.lang.String>} and the key
 	 * argument is a {@code java.lang.Integer}, the returned TypeDescriptor will be
-	 * {@code java.lang.Integer}. If this describes a {@code java.util.Map&lt;?, ?&gt;}
+	 * {@code java.lang.Integer}. If this describes a {@code java.util.Map<?, ?>}
 	 * and the key argument is a {@code java.lang.Integer}, the returned
 	 * TypeDescriptor will be {@code java.lang.Integer} as well.
 	 * <p>Annotation and nested type context will be preserved in the narrowed
@@ -423,9 +425,9 @@ public class TypeDescriptor implements Serializable {
 	 * from the provided map value.
 	 * <p>Narrows the {@link #getMapValueTypeDescriptor() mapValueType} property
 	 * to the class of the provided map value. For example, if this describes a
-	 * {@code java.util.Map&lt;java.lang.String, java.lang.Number&lt;} and the value
+	 * {@code java.util.Map<java.lang.String, java.lang.Number>} and the value
 	 * argument is a {@code java.lang.Integer}, the returned TypeDescriptor will be
-	 * {@code java.lang.Integer}. If this describes a {@code java.util.Map&lt;?, ?&gt;}
+	 * {@code java.lang.Integer}. If this describes a {@code java.util.Map<?, ?>}
 	 * and the value argument is a {@code java.lang.Integer}, the returned
 	 * TypeDescriptor will be {@code java.lang.Integer} as well.
 	 * <p>Annotation and nested type context will be preserved in the narrowed
@@ -452,14 +454,13 @@ public class TypeDescriptor implements Serializable {
 	}
 
 	@Override
-	public boolean equals(Object other) {
+	public boolean equals(@Nullable Object other) {
 		if (this == other) {
 			return true;
 		}
-		if (!(other instanceof TypeDescriptor)) {
+		if (!(other instanceof TypeDescriptor otherDesc)) {
 			return false;
 		}
-		TypeDescriptor otherDesc = (TypeDescriptor) other;
 		if (getType() != otherDesc.getType()) {
 			return false;
 		}
@@ -511,9 +512,9 @@ public class TypeDescriptor implements Serializable {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		for (Annotation ann : getAnnotations()) {
-			builder.append("@").append(ann.annotationType().getName()).append(' ');
+			builder.append('@').append(ann.annotationType().getName()).append(' ');
 		}
-		builder.append(getResolvableType().toString());
+		builder.append(getResolvableType());
 		return builder.toString();
 	}
 
@@ -574,7 +575,7 @@ public class TypeDescriptor implements Serializable {
 	/**
 	 * Create a new type descriptor from a {@link java.util.Map} type.
 	 * <p>Useful for converting to typed Maps.
-	 * <p>For example, a Map&lt;String, String&gt; could be converted to a Map&lt;Id, EmailAddress&gt;
+	 * <p>For example, a {@code Map<String, String>} could be converted to a {@code Map<Id, EmailAddress>}
 	 * by converting to a targetType built with this method:
 	 * The method call to construct such a TypeDescriptor would look something like:
 	 * <pre class="code">
@@ -778,7 +779,7 @@ public class TypeDescriptor implements Serializable {
 		}
 
 		@Override
-		public boolean equals(Object other) {
+		public boolean equals(@Nullable Object other) {
 			return (this == other || (other instanceof AnnotatedElementAdapter &&
 					Arrays.equals(this.annotations, ((AnnotatedElementAdapter) other).annotations)));
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,11 @@ package org.springframework.web.server;
 import java.util.Collections;
 import java.util.List;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.ErrorResponse;
 
 /**
  * Exception for errors that fit response status 406 (not acceptable).
@@ -31,6 +34,10 @@ import org.springframework.http.MediaType;
 @SuppressWarnings("serial")
 public class NotAcceptableStatusException extends ResponseStatusException {
 
+	private static final String PARSE_ERROR_DETAIL_CODE =
+			ErrorResponse.getDefaultDetailMessageCode(NotAcceptableStatusException.class, "parseError");
+
+
 	private final List<MediaType> supportedMediaTypes;
 
 
@@ -38,18 +45,47 @@ public class NotAcceptableStatusException extends ResponseStatusException {
 	 * Constructor for when the requested Content-Type is invalid.
 	 */
 	public NotAcceptableStatusException(String reason) {
-		super(HttpStatus.NOT_ACCEPTABLE, reason);
+		super(HttpStatus.NOT_ACCEPTABLE, reason, null, PARSE_ERROR_DETAIL_CODE, null);
 		this.supportedMediaTypes = Collections.emptyList();
+		getBody().setDetail("Could not parse Accept header.");
 	}
 
 	/**
-	 * Constructor for when requested Content-Type is not supported.
+	 * Constructor for when the requested Content-Type is not supported.
 	 */
-	public NotAcceptableStatusException(List<MediaType> supportedMediaTypes) {
-		super(HttpStatus.NOT_ACCEPTABLE, "Could not find acceptable representation", null);
-		this.supportedMediaTypes = Collections.unmodifiableList(supportedMediaTypes);
+	public NotAcceptableStatusException(List<MediaType> mediaTypes) {
+		super(HttpStatus.NOT_ACCEPTABLE,
+				"Could not find acceptable representation", null, null, new Object[] {mediaTypes});
+
+		this.supportedMediaTypes = Collections.unmodifiableList(mediaTypes);
+		getBody().setDetail("Acceptable representations: " + mediaTypes + ".");
 	}
 
+
+	/**
+	 * Return HttpHeaders with an "Accept" header that documents the supported
+	 * media types, if available, or an empty instance otherwise.
+	 */
+	@Override
+	public HttpHeaders getHeaders() {
+		if (CollectionUtils.isEmpty(this.supportedMediaTypes)) {
+			return HttpHeaders.EMPTY;
+		}
+		HttpHeaders headers = new HttpHeaders();
+		headers.setAccept(this.supportedMediaTypes);
+		return headers;
+	}
+
+	/**
+	 * Delegates to {@link #getHeaders()}.
+	 * @since 5.1.13
+	 * @deprecated as of 6.0 in favor of {@link #getHeaders()}
+	 */
+	@Deprecated(since = "6.0")
+	@Override
+	public HttpHeaders getResponseHeaders() {
+		return getHeaders();
+	}
 
 	/**
 	 * Return the list of supported content types in cases when the Accept

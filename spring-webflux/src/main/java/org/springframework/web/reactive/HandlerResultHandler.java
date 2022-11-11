@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
- * Process the {@link HandlerResult}, usually returned by an {@link HandlerAdapter}.
+ * Process the {@link HandlerResult}, usually returned by a {@link HandlerAdapter}.
  *
  * @author Rossen Stoyanchev
  * @author Sebastien Deleuze
@@ -31,8 +31,8 @@ public interface HandlerResultHandler {
 
 	/**
 	 * Whether this handler supports the given {@link HandlerResult}.
-	 * @param result result object to check
-	 * @return whether or not this object can use the given result
+	 * @param result the result object to check
+	 * @return whether this object can use the given result
 	 */
 	boolean supports(HandlerResult result);
 

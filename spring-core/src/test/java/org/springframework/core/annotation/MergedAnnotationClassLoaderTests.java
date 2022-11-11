@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.core.OverridingClassLoader;
 
@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Phillip Webb
  * @since 5.2
  */
-public class MergedAnnotationClassLoaderTests {
+class MergedAnnotationClassLoaderTests {
 
 	private static final String TEST_ANNOTATION = TestAnnotation.class.getName();
 
@@ -45,7 +45,7 @@ public class MergedAnnotationClassLoaderTests {
 	private static final String TEST_REFERENCE = TestReference.class.getName();
 
 	@Test
-	public void synthesizedUsesCorrectClassLoader() throws Exception {
+	void synthesizedUsesCorrectClassLoader() throws Exception {
 		ClassLoader parent = getClass().getClassLoader();
 		TestClassLoader child = new TestClassLoader(parent);
 		Class<?> source = child.loadClass(WITH_TEST_ANNOTATION);
@@ -81,7 +81,6 @@ public class MergedAnnotationClassLoaderTests {
 		// Also check utils version
 		Annotation utilsMeta = AnnotatedElementUtils.getMergedAnnotation(source,
 				TestMetaAnnotation.class);
-		assertThat(utilsMeta.getClass().getClassLoader()).isEqualTo(parent);
 		assertThat(utilsMeta.getClass().getClassLoader()).isEqualTo(parent);
 		assertThat(getClassAttribute(utilsMeta).getClassLoader()).isEqualTo(child);
 		assertThat(getEnumAttribute(utilsMeta).getClass().getClassLoader()).isEqualTo(
@@ -129,7 +128,7 @@ public class MergedAnnotationClassLoaderTests {
 	}
 
 	@Retention(RetentionPolicy.RUNTIME)
-	static @interface TestMetaAnnotation {
+	@interface TestMetaAnnotation {
 
 		@AliasFor("d")
 		String c() default "";
@@ -145,7 +144,7 @@ public class MergedAnnotationClassLoaderTests {
 
 	@TestMetaAnnotation(classValue = TestReference.class, enumValue = TestEnum.TWO)
 	@Retention(RetentionPolicy.RUNTIME)
-	static @interface TestAnnotation {
+	@interface TestAnnotation {
 
 		@AliasFor("b")
 		String a() default "";
@@ -157,16 +156,13 @@ public class MergedAnnotationClassLoaderTests {
 
 	@TestAnnotation
 	static class WithTestAnnotation {
-
 	}
 
 	static class TestReference {
-
 	}
 
-	static enum TestEnum {
-
+	enum TestEnum {
 		ONE, TWO, THREE
-
 	}
+
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,11 @@ package org.springframework.web.socket.sockjs.transport.session;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -35,21 +33,25 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.socket.sockjs.transport.SockJsServiceConfig;
 import org.springframework.web.socket.sockjs.transport.session.WebSocketServerSockJsSessionTests.TestWebSocketServerSockJsSession;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * Unit tests for {@link WebSocketServerSockJsSession}.
  *
  * @author Rossen Stoyanchev
  */
-public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTests<TestWebSocketServerSockJsSession> {
+class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTests<TestWebSocketServerSockJsSession> {
 
 	private TestWebSocketSession webSocketSession;
 
 
-	@Before
-	public void setup() {
+	@BeforeEach
+	@Override
+	protected void setUp() {
 		super.setUp();
 		this.webSocketSession = new TestWebSocketSession();
 		this.webSocketSession.setOpen(true);
@@ -57,33 +59,33 @@ public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTest
 
 	@Override
 	protected TestWebSocketServerSockJsSession initSockJsSession() {
-		return new TestWebSocketServerSockJsSession(this.sockJsConfig, this.webSocketHandler,
-				Collections.<String, Object>emptyMap());
+		return new TestWebSocketServerSockJsSession(this.sockJsConfig, this.webSocketHandler, Map.of());
 	}
 
+
 	@Test
-	public void isActive() throws Exception {
-		assertFalse(this.session.isActive());
+	void isActive() throws Exception {
+		assertThat(this.session.isActive()).isFalse();
 
 		this.session.initializeDelegateSession(this.webSocketSession);
-		assertTrue(this.session.isActive());
+		assertThat(this.session.isActive()).isTrue();
 
 		this.webSocketSession.setOpen(false);
-		assertFalse(this.session.isActive());
+		assertThat(this.session.isActive()).isFalse();
 	}
 
 	@Test
-	public void afterSessionInitialized() throws Exception {
+	void afterSessionInitialized() throws Exception {
 		this.session.initializeDelegateSession(this.webSocketSession);
-		assertEquals(Collections.singletonList(new TextMessage("o")), this.webSocketSession.getSentMessages());
-		assertEquals(Arrays.asList("schedule"), this.session.heartbeatSchedulingEvents);
+		assertThat(this.webSocketSession.getSentMessages()).containsExactly(new TextMessage("o"));
+		assertThat(this.session.heartbeatSchedulingEvents).containsExactly("schedule");
 		verify(this.webSocketHandler).afterConnectionEstablished(this.session);
 		verifyNoMoreInteractions(this.taskScheduler, this.webSocketHandler);
 	}
 
 	@Test
 	@SuppressWarnings("resource")
-	public void afterSessionInitializedOpenFrameFirst() throws Exception {
+	void afterSessionInitializedOpenFrameFirst() throws Exception {
 		TextWebSocketHandler handler = new TextWebSocketHandler() {
 			@Override
 			public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -92,19 +94,17 @@ public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTest
 		};
 		TestWebSocketServerSockJsSession session = new TestWebSocketServerSockJsSession(this.sockJsConfig, handler, null);
 		session.initializeDelegateSession(this.webSocketSession);
-		List<TextMessage> expected = Arrays.asList(new TextMessage("o"), new TextMessage("a[\"go go\"]"));
-		assertEquals(expected, this.webSocketSession.getSentMessages());
+		assertThat(this.webSocketSession.getSentMessages()).containsExactly(new TextMessage("o"), new TextMessage("a[\"go go\"]"));
 	}
 
 	@Test
-	public void handleMessageEmptyPayload() throws Exception {
+	void handleMessageEmptyPayload() throws Exception {
 		this.session.handleMessage(new TextMessage(""), this.webSocketSession);
 		verifyNoMoreInteractions(this.webSocketHandler);
 	}
 
 	@Test
-	public void handleMessage() throws Exception {
-
+	void handleMessage() throws Exception {
 		TextMessage message = new TextMessage("[\"x\"]");
 		this.session.handleMessage(message, this.webSocketSession);
 
@@ -113,7 +113,7 @@ public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTest
 	}
 
 	@Test
-	public void handleMessageBadData() throws Exception {
+	void handleMessageBadData() throws Exception {
 		TextMessage message = new TextMessage("[\"x]");
 		this.session.handleMessage(message, this.webSocketSession);
 
@@ -123,24 +123,20 @@ public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTest
 	}
 
 	@Test
-	public void sendMessageInternal() throws Exception {
-
+	void sendMessageInternal() throws Exception {
 		this.session.initializeDelegateSession(this.webSocketSession);
 		this.session.sendMessageInternal("x");
 
-		assertEquals(Arrays.asList(new TextMessage("o"), new TextMessage("a[\"x\"]")),
-				this.webSocketSession.getSentMessages());
-
-		assertEquals(Arrays.asList("schedule", "cancel", "schedule"), this.session.heartbeatSchedulingEvents);
+		assertThat(this.webSocketSession.getSentMessages()).containsExactly(new TextMessage("o"), new TextMessage("a[\"x\"]"));
+		assertThat(this.session.heartbeatSchedulingEvents).containsExactly("schedule", "cancel", "schedule");
 	}
 
 	@Test
-	public void disconnect() throws Exception {
-
+	void disconnect() throws Exception {
 		this.session.initializeDelegateSession(this.webSocketSession);
 		this.session.close(CloseStatus.NOT_ACCEPTABLE);
 
-		assertEquals(CloseStatus.NOT_ACCEPTABLE, this.webSocketSession.getCloseStatus());
+		assertThat(this.webSocketSession.getCloseStatus()).isEqualTo(CloseStatus.NOT_ACCEPTABLE);
 	}
 
 
@@ -148,7 +144,7 @@ public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTest
 
 		private final List<String> heartbeatSchedulingEvents = new ArrayList<>();
 
-		public TestWebSocketServerSockJsSession(SockJsServiceConfig config, WebSocketHandler handler,
+		TestWebSocketServerSockJsSession(SockJsServiceConfig config, WebSocketHandler handler,
 				Map<String, Object> attributes) {
 
 			super("1", config, handler, attributes);

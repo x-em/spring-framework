@@ -18,6 +18,7 @@ package org.springframework.jdbc.object;
 
 import java.util.List;
 import java.util.Map;
+
 import javax.sql.DataSource;
 
 import org.springframework.jdbc.core.CallableStatementCreator;
@@ -28,7 +29,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
- * RdbmsOperation using a JdbcTemplate and representing a SQL-based
+ * RdbmsOperation using a JdbcTemplate and representing an SQL-based
  * call such as a stored procedure or a stored function.
  *
  * <p>Configures a CallableStatementCreatorFactory based on the declared
@@ -48,7 +49,7 @@ public abstract class SqlCall extends RdbmsOperation {
 
 	/**
 	 * Flag used to indicate that the sql for this call should be used exactly as
-	 * it is defined. No need to add the escape syntax and parameter place holders.
+	 * it is defined. No need to add the escape syntax and parameter placeholders.
 	 */
 	private boolean sqlReadyForUse = false;
 
@@ -183,7 +184,7 @@ public abstract class SqlCall extends RdbmsOperation {
 
 	/**
 	 * Return a CallableStatementCreator to perform an operation
-	 * with this parameters.
+	 * with these parameters.
 	 * @param inParams parameters. May be {@code null}.
 	 */
 	protected CallableStatementCreator newCallableStatementCreator(@Nullable Map<String, ?> inParams) {

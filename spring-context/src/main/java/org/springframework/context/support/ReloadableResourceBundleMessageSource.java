@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ import org.springframework.util.StringUtils;
  * "WEB-INF/messages_en.xml" etc. Note that message definitions in a <i>previous</i>
  * resource bundle will override ones in a later bundle, due to sequential lookup.
 
- * <p>This MessageSource can easily be used outside of an
+ * <p>This MessageSource can easily be used outside an
  * {@link org.springframework.context.ApplicationContext}: it will use a
  * {@link org.springframework.core.io.DefaultResourceLoader} as default,
  * simply getting overridden with the ApplicationContext's resource loader
@@ -80,7 +80,6 @@ import org.springframework.util.StringUtils;
  * @see #setFileEncodings
  * @see #setPropertiesPersister
  * @see #setResourceLoader
- * @see org.springframework.util.DefaultPropertiesPersister
  * @see org.springframework.core.io.DefaultResourceLoader
  * @see ResourceBundleMessageSource
  * @see java.util.ResourceBundle
@@ -98,7 +97,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 
 	private boolean concurrentRefresh = true;
 
-	private PropertiesPersister propertiesPersister = new DefaultPropertiesPersister();
+	private PropertiesPersister propertiesPersister = DefaultPropertiesPersister.INSTANCE;
 
 	private ResourceLoader resourceLoader = new DefaultResourceLoader();
 
@@ -143,12 +142,12 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 
 	/**
 	 * Set the PropertiesPersister to use for parsing properties files.
-	 * <p>The default is a DefaultPropertiesPersister.
-	 * @see org.springframework.util.DefaultPropertiesPersister
+	 * <p>The default is {@code DefaultPropertiesPersister}.
+	 * @see DefaultPropertiesPersister#INSTANCE
 	 */
 	public void setPropertiesPersister(@Nullable PropertiesPersister propertiesPersister) {
 		this.propertiesPersister =
-				(propertiesPersister != null ? propertiesPersister : new DefaultPropertiesPersister());
+				(propertiesPersister != null ? propertiesPersister : DefaultPropertiesPersister.INSTANCE);
 	}
 
 	/**
@@ -156,7 +155,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * <p>The default is a DefaultResourceLoader. Will get overridden by the
 	 * ApplicationContext if running in a context, as it implements the
 	 * ResourceLoaderAware interface. Can be manually overridden when
-	 * running outside of an ApplicationContext.
+	 * running outside an ApplicationContext.
 	 * @see org.springframework.core.io.DefaultResourceLoader
 	 * @see org.springframework.context.ResourceLoaderAware
 	 */
@@ -229,7 +228,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * for a Locale, after merging all specified resource bundles.
 	 * Either fetches the holder from the cache or freshly loads it.
 	 * <p>Only used when caching resource bundle contents forever, i.e.
-	 * with cacheSeconds < 0. Therefore, merged properties are always
+	 * with cacheSeconds &lt; 0. Therefore, merged properties are always
 	 * cached forever.
 	 */
 	protected PropertiesHolder getMergedProperties(Locale locale) {
@@ -237,6 +236,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 		if (mergedHolder != null) {
 			return mergedHolder;
 		}
+
 		Properties mergedProps = newProperties();
 		long latestTimestamp = -1;
 		String[] basenames = StringUtils.toStringArray(getBasenameSet());
@@ -253,6 +253,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 				}
 			}
 		}
+
 		mergedHolder = new PropertiesHolder(mergedProps, latestTimestamp);
 		PropertiesHolder existing = this.cachedMergedProperties.putIfAbsent(locale, mergedHolder);
 		if (existing != null) {
@@ -279,10 +280,15 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 				return filenames;
 			}
 		}
+
+		// Filenames for given Locale
 		List<String> filenames = new ArrayList<>(7);
 		filenames.addAll(calculateFilenamesForLocale(basename, locale));
-		if (isFallbackToSystemLocale() && !locale.equals(Locale.getDefault())) {
-			List<String> fallbackFilenames = calculateFilenamesForLocale(basename, Locale.getDefault());
+
+		// Filenames for default Locale, if any
+		Locale defaultLocale = getDefaultLocale();
+		if (defaultLocale != null && !defaultLocale.equals(locale)) {
+			List<String> fallbackFilenames = calculateFilenamesForLocale(basename, defaultLocale);
 			for (String fallbackFilename : fallbackFilenames) {
 				if (!filenames.contains(fallbackFilename)) {
 					// Entry for fallback locale that isn't already in filenames list.
@@ -290,7 +296,10 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 				}
 			}
 		}
+
+		// Filename for default bundle file
 		filenames.add(basename);
+
 		if (localeMap == null) {
 			localeMap = new ConcurrentHashMap<>();
 			Map<Locale, List<String>> existing = this.cachedFilenames.putIfAbsent(basename, localeMap);
@@ -305,7 +314,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	/**
 	 * Calculate the filenames for the given bundle basename and Locale,
 	 * appending language code, country code, and variant code.
-	 * E.g.: basename "messages", Locale "de_AT_oo" -> "messages_de_AT_OO",
+	 * <p>For example, basename "messages", Locale "de_AT_oo" &rarr; "messages_de_AT_OO",
 	 * "messages_de_AT", "messages_de".
 	 * <p>Follows the rules defined by {@link java.util.Locale#toString()}.
 	 * @param basename the basename of the bundle

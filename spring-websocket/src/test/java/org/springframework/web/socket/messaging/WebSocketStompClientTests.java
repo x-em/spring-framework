@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,16 @@ package org.springframework.web.socket.messaging;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.ConnectionHandlingStompSession;
@@ -37,7 +40,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.messaging.tcp.TcpConnection;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.util.MimeTypeUtils;
-import org.springframework.util.concurrent.SettableListenableFuture;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.PongMessage;
@@ -45,15 +47,26 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * Unit tests for {@link WebSocketStompClient}.
  *
  * @author Rossen Stoyanchev
  */
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class WebSocketStompClientTests {
 
 	@Mock
@@ -65,27 +78,24 @@ public class WebSocketStompClientTests {
 	@Mock
 	private WebSocketSession webSocketSession;
 
-
 	private TestWebSocketStompClient stompClient;
 
 	private ArgumentCaptor<WebSocketHandler> webSocketHandlerCaptor;
 
-	private SettableListenableFuture<WebSocketSession> handshakeFuture;
+	private CompletableFuture<WebSocketSession> handshakeFuture;
 
 
-	@Before
+	@BeforeEach
 	public void setUp() throws Exception {
-		MockitoAnnotations.initMocks(this);
-
 		WebSocketClient webSocketClient = mock(WebSocketClient.class);
 		this.stompClient = new TestWebSocketStompClient(webSocketClient);
 		this.stompClient.setTaskScheduler(this.taskScheduler);
 		this.stompClient.setStompSession(this.stompSession);
 
 		this.webSocketHandlerCaptor = ArgumentCaptor.forClass(WebSocketHandler.class);
-		this.handshakeFuture = new SettableListenableFuture<>();
-		when(webSocketClient.doHandshake(this.webSocketHandlerCaptor.capture(), any(), any(URI.class)))
-				.thenReturn(this.handshakeFuture);
+		this.handshakeFuture = new CompletableFuture<>();
+		given(webSocketClient.execute(this.webSocketHandlerCaptor.capture(), any(), any(URI.class)))
+				.willReturn(this.handshakeFuture);
 	}
 
 
@@ -94,7 +104,7 @@ public class WebSocketStompClientTests {
 		connect();
 
 		IllegalStateException handshakeFailure = new IllegalStateException("simulated exception");
-		this.handshakeFuture.setException(handshakeFailure);
+		this.handshakeFuture.completeExceptionally(handshakeFailure);
 
 		verify(this.stompSession).afterConnectFailure(same(handshakeFailure));
 	}
@@ -128,13 +138,13 @@ public class WebSocketStompClientTests {
 		ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
 		verify(this.stompSession).handleMessage(captor.capture());
 		Message<byte[]> message = captor.getValue();
-		assertNotNull(message);
+		assertThat(message).isNotNull();
 
 		StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 		StompHeaders headers = StompHeaders.readOnlyStompHeaders(accessor.toNativeHeaderMap());
-		assertEquals(StompCommand.SEND, accessor.getCommand());
-		assertEquals("alpha", headers.getFirst("a"));
-		assertEquals("Message payload", new String(message.getPayload(), StandardCharsets.UTF_8));
+		assertThat(accessor.getCommand()).isEqualTo(StompCommand.SEND);
+		assertThat(headers.getFirst("a")).isEqualTo("alpha");
+		assertThat(new String(message.getPayload(), StandardCharsets.UTF_8)).isEqualTo("Message payload");
 	}
 
 	@Test
@@ -153,13 +163,13 @@ public class WebSocketStompClientTests {
 		ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
 		verify(this.stompSession).handleMessage(captor.capture());
 		Message<byte[]> message = captor.getValue();
-		assertNotNull(message);
+		assertThat(message).isNotNull();
 
 		StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 		StompHeaders headers = StompHeaders.readOnlyStompHeaders(accessor.toNativeHeaderMap());
-		assertEquals(StompCommand.SEND, accessor.getCommand());
-		assertEquals("alpha", headers.getFirst("a"));
-		assertEquals("Message payload", new String(message.getPayload(), StandardCharsets.UTF_8));
+		assertThat(accessor.getCommand()).isEqualTo(StompCommand.SEND);
+		assertThat(headers.getFirst("a")).isEqualTo("alpha");
+		assertThat(new String(message.getPayload(), StandardCharsets.UTF_8)).isEqualTo("Message payload");
 	}
 
 	@Test
@@ -171,13 +181,13 @@ public class WebSocketStompClientTests {
 		ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
 		verify(this.stompSession).handleMessage(captor.capture());
 		Message<byte[]> message = captor.getValue();
-		assertNotNull(message);
+		assertThat(message).isNotNull();
 
 		StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 		StompHeaders headers = StompHeaders.readOnlyStompHeaders(accessor.toNativeHeaderMap());
-		assertEquals(StompCommand.SEND, accessor.getCommand());
-		assertEquals("alpha", headers.getFirst("a"));
-		assertEquals("Message payload", new String(message.getPayload(), StandardCharsets.UTF_8));
+		assertThat(accessor.getCommand()).isEqualTo(StompCommand.SEND);
+		assertThat(headers.getFirst("a")).isEqualTo("alpha");
+		assertThat(new String(message.getPayload(), StandardCharsets.UTF_8)).isEqualTo("Message payload");
 	}
 
 	@Test
@@ -192,13 +202,13 @@ public class WebSocketStompClientTests {
 		accessor.setDestination("/topic/foo");
 		byte[] payload = "payload".getBytes(StandardCharsets.UTF_8);
 
-		getTcpConnection().send(MessageBuilder.createMessage(payload, accessor.getMessageHeaders()));
+		getTcpConnection().sendAsync(MessageBuilder.createMessage(payload, accessor.getMessageHeaders()));
 
 		ArgumentCaptor<TextMessage> textMessageCaptor = ArgumentCaptor.forClass(TextMessage.class);
 		verify(this.webSocketSession).sendMessage(textMessageCaptor.capture());
 		TextMessage textMessage = textMessageCaptor.getValue();
-		assertNotNull(textMessage);
-		assertEquals("SEND\ndestination:/topic/foo\ncontent-length:7\n\npayload\0", textMessage.getPayload());
+		assertThat(textMessage).isNotNull();
+		assertThat(textMessage.getPayload()).isEqualTo("SEND\ndestination:/topic/foo\ncontent-length:7\n\npayload\0");
 	}
 
 	@Test
@@ -208,46 +218,40 @@ public class WebSocketStompClientTests {
 		accessor.setContentType(MimeTypeUtils.APPLICATION_OCTET_STREAM);
 		byte[] payload = "payload".getBytes(StandardCharsets.UTF_8);
 
-		getTcpConnection().send(MessageBuilder.createMessage(payload, accessor.getMessageHeaders()));
+		getTcpConnection().sendAsync(MessageBuilder.createMessage(payload, accessor.getMessageHeaders()));
 
 		ArgumentCaptor<BinaryMessage> binaryMessageCaptor = ArgumentCaptor.forClass(BinaryMessage.class);
 		verify(this.webSocketSession).sendMessage(binaryMessageCaptor.capture());
 		BinaryMessage binaryMessage = binaryMessageCaptor.getValue();
-		assertNotNull(binaryMessage);
-		assertEquals("SEND\ndestination:/b\ncontent-type:application/octet-stream\ncontent-length:7\n\npayload\0",
-				new String(binaryMessage.getPayload().array(), StandardCharsets.UTF_8));
+		assertThat(binaryMessage).isNotNull();
+		assertThat(new String(binaryMessage.getPayload().array(), StandardCharsets.UTF_8)).isEqualTo("SEND\ndestination:/b\ncontent-type:application/octet-stream\ncontent-length:7\n\npayload\0");
 	}
 
 	@Test
 	public void heartbeatDefaultValue() throws Exception {
 		WebSocketStompClient stompClient = new WebSocketStompClient(mock(WebSocketClient.class));
-		assertArrayEquals(new long[] {0, 0}, stompClient.getDefaultHeartbeat());
+		assertThat(stompClient.getDefaultHeartbeat()).isEqualTo(new long[] {0, 0});
 
 		StompHeaders connectHeaders = stompClient.processConnectHeaders(null);
-		assertArrayEquals(new long[] {0, 0}, connectHeaders.getHeartbeat());
+		assertThat(connectHeaders.getHeartbeat()).isEqualTo(new long[] {0, 0});
 	}
 
 	@Test
 	public void heartbeatDefaultValueWithScheduler() throws Exception {
 		WebSocketStompClient stompClient = new WebSocketStompClient(mock(WebSocketClient.class));
 		stompClient.setTaskScheduler(mock(TaskScheduler.class));
-		assertArrayEquals(new long[] {10000, 10000}, stompClient.getDefaultHeartbeat());
+		assertThat(stompClient.getDefaultHeartbeat()).isEqualTo(new long[] {10000, 10000});
 
 		StompHeaders connectHeaders = stompClient.processConnectHeaders(null);
-		assertArrayEquals(new long[] {10000, 10000}, connectHeaders.getHeartbeat());
+		assertThat(connectHeaders.getHeartbeat()).isEqualTo(new long[] {10000, 10000});
 	}
 
 	@Test
 	public void heartbeatDefaultValueSetWithoutScheduler() throws Exception {
 		WebSocketStompClient stompClient = new WebSocketStompClient(mock(WebSocketClient.class));
 		stompClient.setDefaultHeartbeat(new long[] {5, 5});
-		try {
-			stompClient.processConnectHeaders(null);
-			fail("Expected IllegalStateException");
-		}
-		catch (IllegalStateException ex) {
-			// ignore
-		}
+		assertThatIllegalStateException().isThrownBy(() ->
+				stompClient.processConnectHeaders(null));
 	}
 
 	@Test
@@ -292,7 +296,7 @@ public class WebSocketStompClientTests {
 		TcpConnection<byte[]> tcpConnection = getTcpConnection();
 
 		ScheduledFuture future = mock(ScheduledFuture.class);
-		when(this.taskScheduler.scheduleWithFixedDelay(any(), eq(1L))).thenReturn(future);
+		given(this.taskScheduler.scheduleWithFixedDelay(any(), eq(Duration.ofMillis(1)))).willReturn(future);
 
 		tcpConnection.onReadInactivity(mock(Runnable.class), 2L);
 		tcpConnection.onWriteInactivity(mock(Runnable.class), 2L);
@@ -305,28 +309,31 @@ public class WebSocketStompClientTests {
 
 
 	private WebSocketHandler connect() {
-		this.stompClient.connect("/foo", mock(StompSessionHandler.class));
+		this.stompClient.connectAsync("/foo", mock(StompSessionHandler.class));
 
-		verify(this.stompSession).getSessionFuture();
+		verify(this.stompSession).getSession();
 		verifyNoMoreInteractions(this.stompSession);
 
 		WebSocketHandler webSocketHandler = this.webSocketHandlerCaptor.getValue();
-		assertNotNull(webSocketHandler);
+		assertThat(webSocketHandler).isNotNull();
 		return webSocketHandler;
 	}
 
 	@SuppressWarnings("unchecked")
 	private TcpConnection<byte[]> getTcpConnection() throws Exception {
-		WebSocketHandler webSocketHandler = connect();
-		webSocketHandler.afterConnectionEstablished(this.webSocketSession);
-		return (TcpConnection<byte[]>) webSocketHandler;
+		WebSocketHandler handler = connect();
+		handler.afterConnectionEstablished(this.webSocketSession);
+		if (handler instanceof WebSocketHandlerDecorator) {
+			handler = ((WebSocketHandlerDecorator) handler).getLastHandler();
+		}
+		return (TcpConnection<byte[]>) handler;
 	}
 
 	private void testInactivityTaskScheduling(Runnable runnable, long delay, long sleepTime)
 			throws InterruptedException {
 
 		ArgumentCaptor<Runnable> inactivityTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
-		verify(this.taskScheduler).scheduleWithFixedDelay(inactivityTaskCaptor.capture(), eq(delay/2));
+		verify(this.taskScheduler).scheduleWithFixedDelay(inactivityTaskCaptor.capture(), eq(Duration.ofMillis(delay/2)));
 		verifyNoMoreInteractions(this.taskScheduler);
 
 		if (sleepTime > 0) {
@@ -334,7 +341,7 @@ public class WebSocketStompClientTests {
 		}
 
 		Runnable inactivityTask = inactivityTaskCaptor.getValue();
-		assertNotNull(inactivityTask);
+		assertThat(inactivityTask).isNotNull();
 		inactivityTask.run();
 
 		if (sleepTime > 0) {

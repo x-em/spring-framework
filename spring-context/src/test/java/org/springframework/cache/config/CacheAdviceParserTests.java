@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,29 +16,26 @@
 
 package org.springframework.cache.config;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.context.support.GenericXmlApplicationContext;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * AOP advice specific parsing tests.
  *
  * @author Stephane Nicoll
  */
-public class CacheAdviceParserTests {
+class CacheAdviceParserTests {
 
 	@Test
-	public void keyAndKeyGeneratorCannotBeSetTogether() {
-		try {
-			new GenericXmlApplicationContext("/org/springframework/cache/config/cache-advice-invalid.xml");
-			fail("Should have failed to load context, one advise define both a key and a key generator");
-		}
-		catch (BeanDefinitionStoreException ex) {
-			// TODO better exception handling
-		}
+	void keyAndKeyGeneratorCannotBeSetTogether() {
+		assertThatThrownBy(() -> new GenericXmlApplicationContext(
+				"/org/springframework/cache/config/cache-advice-invalid.xml")
+		).isInstanceOf(BeanDefinitionStoreException.class);
+		// TODO better exception handling
 	}
 
 }

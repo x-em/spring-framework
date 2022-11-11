@@ -42,7 +42,6 @@ import org.springframework.cglib.core.CollectionUtils;
 import org.springframework.cglib.core.Constants;
 import org.springframework.cglib.core.DuplicatesPredicate;
 import org.springframework.cglib.core.EmitUtils;
-import org.springframework.cglib.core.KeyFactory;
 import org.springframework.cglib.core.Local;
 import org.springframework.cglib.core.MethodInfo;
 import org.springframework.cglib.core.MethodInfoTransformer;
@@ -99,9 +98,6 @@ public class Enhancer extends AbstractClassGenerator {
 	};
 
 	private static final Source SOURCE = new Source(Enhancer.class.getName());
-
-	private static final EnhancerKey KEY_FACTORY =
-			(EnhancerKey) KeyFactory.create(EnhancerKey.class, KeyFactory.HASH_ASM_TYPE, null);
 
 	private static final String BOUND_FIELD = "CGLIB$BOUND";
 
@@ -197,19 +193,16 @@ public class Enhancer extends AbstractClassGenerator {
 	private Object currentKey;
 
 
-	/**
-	 * Internal interface, only public due to ClassLoader issues.
-	 */
-	public interface EnhancerKey {
-
-		public Object newInstance(String type,
-				String[] interfaces,
+	// SPRING PATCH BEGIN
+	private record EnhancerKey(String type,
+				List<String> interfaces,
 				WeakCacheKey<CallbackFilter> filter,
-				Type[] callbackTypes,
+				List<Type> callbackTypes,
 				boolean useFactory,
 				boolean interceptDuringConstruction,
-				Long serialVersionUID);
+				Long serialVersionUID) {
 	}
+	// SPRING PATCH END
 
 
 	private Class[] interfaces;
@@ -259,6 +252,9 @@ public class Enhancer extends AbstractClassGenerator {
 	public void setSuperclass(Class superclass) {
 		if (superclass != null && superclass.isInterface()) {
 			setInterfaces(new Class[]{superclass});
+			// SPRING PATCH BEGIN
+			setContextClass(superclass);
+			// SPRING PATCH END
 		}
 		else if (superclass != null && superclass.equals(Object.class)) {
 			// affects choice of ClassLoader
@@ -558,13 +554,15 @@ public class Enhancer extends AbstractClassGenerator {
 
 	private Object createHelper() {
 		preValidate();
-		Object key = KEY_FACTORY.newInstance((superclass != null) ? superclass.getName() : null,
-				ReflectUtils.getNames(interfaces),
-				filter == ALL_ZERO ? null : new WeakCacheKey<CallbackFilter>(filter),
-				callbackTypes,
+		// SPRING PATCH BEGIN
+		Object key = new EnhancerKey((superclass != null ? superclass.getName() : null),
+				(interfaces != null ? Arrays.asList(ReflectUtils.getNames(interfaces)) : null),
+				(filter == ALL_ZERO ? null : new WeakCacheKey<CallbackFilter>(filter)),
+				Arrays.asList(callbackTypes),
 				useFactory,
 				interceptDuringConstruction,
 				serialVersionUID);
+		// SPRING PATCH END
 		this.currentKey = key;
 		Object result = super.create(key);
 		return result;
@@ -683,7 +681,7 @@ public class Enhancer extends AbstractClassGenerator {
 
 		ClassEmitter e = new ClassEmitter(v);
 		if (currentData == null) {
-			e.begin_class(Constants.V1_2,
+			e.begin_class(Constants.V1_8,
 					Constants.ACC_PUBLIC,
 					getClassName(),
 					Type.getType(sc),
@@ -693,7 +691,7 @@ public class Enhancer extends AbstractClassGenerator {
 					Constants.SOURCE_FILE);
 		}
 		else {
-			e.begin_class(Constants.V1_2,
+			e.begin_class(Constants.V1_8,
 					Constants.ACC_PUBLIC,
 					getClassName(),
 					null,
@@ -1118,7 +1116,7 @@ public class Enhancer extends AbstractClassGenerator {
 		CodeEmitter e = ce.begin_method(Constants.ACC_PUBLIC, NEW_INSTANCE, null);
 		Type thisType = getThisType(e);
 		e.load_arg(0);
-		e.invoke_static(thisType, SET_THREAD_CALLBACKS);
+		e.invoke_static(thisType, SET_THREAD_CALLBACKS, false);
 		emitCommonNewInstance(e);
 	}
 
@@ -1137,7 +1135,7 @@ public class Enhancer extends AbstractClassGenerator {
 		e.dup();
 		e.invoke_constructor(thisType);
 		e.aconst_null();
-		e.invoke_static(thisType, SET_THREAD_CALLBACKS);
+		e.invoke_static(thisType, SET_THREAD_CALLBACKS, false);
 		e.return_value();
 		e.end_method();
 	}
@@ -1156,7 +1154,7 @@ public class Enhancer extends AbstractClassGenerator {
 				e.push(0);
 				e.load_arg(0);
 				e.aastore();
-				e.invoke_static(getThisType(e), SET_THREAD_CALLBACKS);
+				e.invoke_static(getThisType(e), SET_THREAD_CALLBACKS, false);
 				break;
 			default:
 				e.throw_exception(ILLEGAL_STATE_EXCEPTION, "More than one callback object required");
@@ -1168,7 +1166,7 @@ public class Enhancer extends AbstractClassGenerator {
 		final CodeEmitter e = ce.begin_method(Constants.ACC_PUBLIC, MULTIARG_NEW_INSTANCE, null);
 		final Type thisType = getThisType(e);
 		e.load_arg(2);
-		e.invoke_static(thisType, SET_THREAD_CALLBACKS);
+		e.invoke_static(thisType, SET_THREAD_CALLBACKS, false);
 		e.new_instance(thisType);
 		e.dup();
 		e.load_arg(0);
@@ -1191,7 +1189,7 @@ public class Enhancer extends AbstractClassGenerator {
 			}
 		});
 		e.aconst_null();
-		e.invoke_static(thisType, SET_THREAD_CALLBACKS);
+		e.invoke_static(thisType, SET_THREAD_CALLBACKS, false);
 		e.return_value();
 		e.end_method();
 	}
@@ -1244,7 +1242,6 @@ public class Enhancer extends AbstractClassGenerator {
 		se.invoke_constructor(THREAD_LOCAL, CSTRUCT_NULL);
 		se.putfield(THREAD_CALLBACKS_FIELD);
 
-		final Object[] state = new Object[1];
 		CallbackGenerator.Context context = new CallbackGenerator.Context() {
 			public ClassLoader getClassLoader() {
 				return Enhancer.this.getClassLoader();

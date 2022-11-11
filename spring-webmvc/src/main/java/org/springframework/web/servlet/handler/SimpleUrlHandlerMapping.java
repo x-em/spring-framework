@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,22 +34,23 @@ import org.springframework.util.CollectionUtils;
  * bean references, e.g. via the map element in XML bean definitions.
  *
  * <p>Mappings to bean names can be set via the "mappings" property, in a form
- * accepted by the {@code java.util.Properties} class, like as follows:<br>
- * {@code
+ * accepted by the {@code java.util.Properties} class, as follows:
+ *
+ * <pre class="code">
  * /welcome.html=ticketController
- * /show.html=ticketController
- * }<br>
- * The syntax is {@code PATH=HANDLER_BEAN_NAME}.
- * If the path doesn't begin with a slash, one is prepended.
+ * /show.html=ticketController</pre>
+ *
+ * <p>The syntax is {@code PATH=HANDLER_BEAN_NAME}. If the path doesn't begin
+ * with a slash, one is prepended.
  *
  * <p>Supports direct matches (given "/test" -&gt; registered "/test") and "*"
- * pattern matches (given "/test" -&gt; registered "/t*"). Note that the default
- * is to map within the current servlet mapping if applicable; see the
- * {@link #setAlwaysUseFullPath "alwaysUseFullPath"} property. For details on the
- * pattern options, see the {@link org.springframework.util.AntPathMatcher} javadoc.
+ * matches (given "/test" -&gt; registered "/t*"). For details on the pattern
+ * options, see the {@link org.springframework.web.util.pattern.PathPattern}
+ * javadoc.
 
  * @author Rod Johnson
  * @author Juergen Hoeller
+ * @author Sam Brannen
  * @see #setMappings
  * @see #setUrlMap
  * @see BeanNameUrlHandlerMapping
@@ -57,6 +58,38 @@ import org.springframework.util.CollectionUtils;
 public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 
 	private final Map<String, Object> urlMap = new LinkedHashMap<>();
+
+
+	/**
+	 * Create a {@code SimpleUrlHandlerMapping} with default settings.
+	 */
+	public SimpleUrlHandlerMapping() {
+	}
+
+	/**
+	 * Create a {@code SimpleUrlHandlerMapping} using the supplied URL map.
+	 * @param urlMap map with URL paths as keys and handler beans (or handler
+	 * bean names) as values
+	 * @since 5.2
+	 * @see #setUrlMap(Map)
+	 */
+	public SimpleUrlHandlerMapping(Map<String, ?> urlMap) {
+		setUrlMap(urlMap);
+	}
+
+	/**
+	 * Create a {@code SimpleUrlHandlerMapping} using the supplied URL map and order.
+	 * @param urlMap map with URL paths as keys and handler beans (or handler
+	 * bean names) as values
+	 * @param order the order value for this {@code SimpleUrlHandlerMapping}
+	 * @since 5.2
+	 * @see #setUrlMap(Map)
+	 * @see #setOrder(int)
+	 */
+	public SimpleUrlHandlerMapping(Map<String, ?> urlMap, int order) {
+		setUrlMap(urlMap);
+		setOrder(order);
+	}
 
 
 	/**
@@ -84,7 +117,7 @@ public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 	}
 
 	/**
-	 * Allow Map access to the URL path mappings, with the option to add or
+	 * Allow {@code Map} access to the URL path mappings, with the option to add or
 	 * override specific entries.
 	 * <p>Useful for specifying entries directly, for example via "urlMap[myKey]".
 	 * This is particularly useful for adding or overriding entries in child
@@ -127,17 +160,31 @@ public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 				}
 				registerHandler(url, handler);
 			});
-			if (logger.isDebugEnabled()) {
-				List<String> patterns = new ArrayList<>();
-				if (getRootHandler() != null) {
-					patterns.add("/");
-				}
-				if (getDefaultHandler() != null) {
-					patterns.add("/**");
-				}
-				patterns.addAll(getHandlerMap().keySet());
-				logger.debug("Patterns " + patterns + " in " + formatMappingName());
+			logMappings();
+		}
+	}
+
+	private void logMappings() {
+		if (mappingsLogger.isDebugEnabled()) {
+			Map<String, Object> map = new LinkedHashMap<>(getHandlerMap());
+			if (getRootHandler() != null) {
+				map.put("/", getRootHandler());
 			}
+			if (getDefaultHandler() != null) {
+				map.put("/**", getDefaultHandler());
+			}
+			mappingsLogger.debug(formatMappingName() + " " + map);
+		}
+		else if (logger.isDebugEnabled()) {
+			List<String> patterns = new ArrayList<>();
+			if (getRootHandler() != null) {
+				patterns.add("/");
+			}
+			if (getDefaultHandler() != null) {
+				patterns.add("/**");
+			}
+			patterns.addAll(getHandlerMap().keySet());
+			logger.debug("Patterns " + patterns + " in " + formatMappingName());
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,14 @@
 
 package org.springframework.test.context.support;
 
-import org.junit.Test;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.junit.jupiter.api.Test;
 
 import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.test.context.MergedContextConfiguration;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit test which verifies that extensions of
@@ -34,24 +37,25 @@ import static org.junit.Assert.*;
  * @author Sam Brannen
  * @since 2.5
  */
-public class CustomizedGenericXmlContextLoaderTests {
+class CustomizedGenericXmlContextLoaderTests {
 
 	@Test
-	public void customizeContext() throws Exception {
+	void customizeContext() throws Exception {
+		AtomicBoolean customizeInvoked = new AtomicBoolean(false);
 
-		final StringBuilder builder = new StringBuilder();
-		final String expectedContents = "customizeContext() was called";
-
-		new GenericXmlContextLoader() {
-
+		GenericXmlContextLoader customLoader = new GenericXmlContextLoader() {
 			@Override
 			protected void customizeContext(GenericApplicationContext context) {
-				assertFalse("The context should not yet have been refreshed.", context.isActive());
-				builder.append(expectedContents);
+				assertThat(context.isActive()).as("The context should not yet have been refreshed.").isFalse();
+				customizeInvoked.set(true);
 			}
-		}.loadContext("classpath:/org/springframework/test/context/support/CustomizedGenericXmlContextLoaderTests-context.xml");
+		};
 
-		assertEquals("customizeContext() should have been called.", expectedContents, builder.toString());
+		MergedContextConfiguration mergedConfig =
+				new MergedContextConfiguration(getClass(), null, null, null, null);
+		customLoader.loadContext(mergedConfig);
+
+		assertThat(customizeInvoked).as("customizeContext() should have been invoked").isTrue();
 	}
 
 }
