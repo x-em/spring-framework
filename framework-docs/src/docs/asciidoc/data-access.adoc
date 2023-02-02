@@ -1,9 +1,7 @@
 [[spring-data-tier]]
 = Data Access
-:toc: left
-:toclevels: 4
-:tabsize: 4
-:docinfo1:
+include::attributes.adoc[]
+include::page-layout.adoc[]
 
 This part of the reference documentation is concerned with data access and the
 interaction between the data access layer and the business or service layer.
@@ -131,7 +129,7 @@ Typically, you need an application server's JTA capability only if your applicat
 to handle transactions across multiple resources, which is not a requirement for many
 applications. Many high-end applications use a single, highly scalable database (such as
 Oracle RAC) instead. Stand-alone transaction managers (such as
-https://www.atomikos.com/[Atomikos Transactions] and https://jotm.ow2.org/[JOTM])
+https://www.atomikos.com/[Atomikos Transactions])
 are other options. Of course, you may need other application server capabilities, such as
 Java Message Service (JMS) and Jakarta EE Connector Architecture (JCA).
 
@@ -1092,8 +1090,8 @@ application-specific `Exception` type by supplying an _exception pattern_ via th
 ----
 	<tx:advice id="txAdvice" transaction-manager="txManager">
 		<tx:attributes>
-		<tx:method name="get*" read-only="true" rollback-for="NoProductInStockException"/>
-		<tx:method name="*"/>
+			<tx:method name="get*" read-only="true" rollback-for="NoProductInStockException"/>
+			<tx:method name="*"/>
 		</tx:attributes>
 	</tx:advice>
 ----
@@ -1107,8 +1105,8 @@ unhandled `InstrumentNotFoundException`:
 ----
 	<tx:advice id="txAdvice">
 		<tx:attributes>
-		<tx:method name="updateStock" no-rollback-for="InstrumentNotFoundException"/>
-		<tx:method name="*"/>
+			<tx:method name="updateStock" no-rollback-for="InstrumentNotFoundException"/>
+			<tx:method name="*"/>
 		</tx:attributes>
 	</tx:advice>
 ----
@@ -1123,7 +1121,7 @@ attendant transaction:
 ----
 	<tx:advice id="txAdvice">
 		<tx:attributes>
-		<tx:method name="*" rollback-for="Throwable" no-rollback-for="InstrumentNotFoundException"/>
+			<tx:method name="*" rollback-for="Throwable" no-rollback-for="InstrumentNotFoundException"/>
 		</tx:attributes>
 	</tx:advice>
 ----
@@ -3482,6 +3480,7 @@ configure a `DataSource` in your Spring configuration file and then dependency-i
 that shared `DataSource` bean into your DAO classes. The `JdbcTemplate` is created in
 the setter for the `DataSource`. This leads to DAOs that resemble the following:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -3506,6 +3505,7 @@ the setter for the `DataSource`. This leads to DAOs that resemble the following:
 		// JDBC-backed implementations of the methods on the CorporateEventDao follow...
 	}
 ----
+--
 
 The following example shows the corresponding XML configuration:
 
@@ -3542,6 +3542,7 @@ support for dependency injection. In this case, you can annotate the class with 
 (which makes it a candidate for component-scanning) and annotate the `DataSource` setter
 method with `@Autowired`. The following example shows how to do so:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -3576,6 +3577,7 @@ method with `@Autowired`. The following example shows how to do so:
 <1> Annotate the class with `@Repository`.
 <2> Constructor injection of the `DataSource`.
 <3> Create a new `JdbcTemplate` with the `DataSource`.
+--
 
 
 The following example shows the corresponding XML configuration:
@@ -4186,7 +4188,7 @@ To configure a `DriverManagerDataSource`:
 
 . Obtain a connection with `DriverManagerDataSource` as you typically obtain a JDBC
   connection.
-. Specify the fully qualified classname of the JDBC driver so that the `DriverManager`
+. Specify the fully qualified class name of the JDBC driver so that the `DriverManager`
   can load the driver class.
 . Provide a URL that varies between JDBC drivers. (See the documentation for your driver
   for the correct value.)
@@ -4344,7 +4346,7 @@ javadoc for more details.
 ==== Using `DataSourceTransactionManager`
 
 The `DataSourceTransactionManager` class is a `PlatformTransactionManager`
-implementation for single JDBC datasources. It binds a JDBC connection from the
+implementation for single JDBC data sources. It binds a JDBC connection from the
 specified data source to the currently executing thread, potentially allowing for one
 thread connection per data source.
 
@@ -5486,8 +5488,7 @@ example shows such a method:
 .Java
 ----
 	public List<Actor> searchForActors(int age, String namePattern) {
-		List<Actor> actors = actorSearchMappingQuery.execute(age, namePattern);
-		return actors;
+		return actorSearchMappingQuery.execute(age, namePattern);
 	}
 ----
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
@@ -6824,7 +6825,7 @@ The following query uses a bind variable:
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
 .Kotlin
 ----
-	val first = client.sql("SELECT id, name FROM person WHERE WHERE first_name = :fn")
+	val first = client.sql("SELECT id, name FROM person WHERE first_name = :fn")
 	        .bind("fn", "Joe")
 	        .fetch().awaitSingle()
 ----
@@ -6849,7 +6850,7 @@ Without specifying further mapping details, queries return tabular results
 as `Map` whose keys are case-insensitive column names that map to their column value.
 
 You can take control over result mapping by supplying a `Function<Row, T>` that gets
-called for each `Row` so it can can return arbitrary values (singular values,
+called for each `Row` so it can return arbitrary values (singular values,
 collections and maps, and objects).
 
 The following example extracts the `name` column and emits its value:
@@ -6965,7 +6966,7 @@ Consider the following query:
 SELECT id, name, state FROM table WHERE (name, age) IN (('John', 35), ('Ann', 50))
 ----
 
-The preceding query can be parametrized and run as follows:
+The preceding query can be parameterized and run as follows:
 
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
@@ -7080,6 +7081,7 @@ in your Spring configuration file and then dependency-inject
 that shared `ConnectionFactory` bean into your DAO classes. The `DatabaseClient` is created in
 the setter for the `ConnectionFactory`. This leads to DAOs that resemble the following:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -7104,12 +7106,14 @@ the setter for the `ConnectionFactory`. This leads to DAOs that resemble the fol
 		// R2DBC-backed implementations of the methods on the CorporateEventDao follow...
 	}
 ----
+--
 
 An alternative to explicit configuration is to use component-scanning and annotation
 support for dependency injection. In this case, you can annotate the class with `@Component`
 (which makes it a candidate for component-scanning) and annotate the `ConnectionFactory` setter
 method with `@Autowired`. The following example shows how to do so:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -7144,6 +7148,7 @@ method with `@Autowired`. The following example shows how to do so:
 <1> Annotate the class with `@Component`.
 <2> Constructor injection of the `ConnectionFactory`.
 <3> Create a new `DatabaseClient` with the `ConnectionFactory`.
+--
 
 Regardless of which of the above template initialization styles you choose to use (or
 not), it is seldom necessary to create a new instance of a `DatabaseClient` class each
@@ -7207,7 +7212,7 @@ responsibility of the administrator who sets up the `ConnectionFactory`. You
 most likely fill both roles as you develop and test code, but you do not
 necessarily have to know how the production data source is configured.
 
-When you use Spring's R2DBC layer, you can can configure your own with a
+When you use Spring's R2DBC layer, you can configure your own with a
 connection pool implementation provided by a third party. A popular
 implementation is R2DBC Pool (`r2dbc-pool`). Implementations in the Spring
 distribution are meant only for testing purposes and do not provide pooling.
@@ -7281,7 +7286,7 @@ javadoc for more details.
 ==== Using `R2dbcTransactionManager`
 
 The `R2dbcTransactionManager` class is a `ReactiveTransactionManager` implementation for
-single R2DBC datasources. It binds an R2DBC connection from the specified connection factory
+single R2DBC data sources. It binds an R2DBC connection from the specified connection factory
 to the subscriber `Context`, potentially allowing for one subscriber connection for each
 connection factory.
 
@@ -8631,7 +8636,7 @@ given `javax.xml.transform.Result`. The result is a tagging interface that basic
 represents an XML output abstraction. Concrete implementations wrap various XML
 representations, as the following table indicates:
 
-[[oxm-marshller-tbl]]
+[[oxm-marshaller-tbl]]
 |===
 | Result implementation| Wraps XML representation
 
@@ -8674,7 +8679,7 @@ This interface also has one method, which reads from the given
 with `Result`, `Source` is a tagging interface that has three concrete implementations. Each
 wraps a different XML representation, as the following table indicates:
 
-[[oxm-unmarshller-tbl]]
+[[oxm-unmarshaller-tbl]]
 |===
 | Source implementation| Wraps XML representation
 
@@ -8868,9 +8873,10 @@ preamble of the XML configuration file. The following example shows how to do so
 	<beans xmlns="http://www.springframework.org/schema/beans"
 		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		xmlns:oxm="http://www.springframework.org/schema/oxm" <1>
-    xsi:schemaLocation="http://www.springframework.org/schema/beans
-      https://www.springframework.org/schema/beans/spring-beans.xsd
-      http://www.springframework.org/schema/oxm https://www.springframework.org/schema/oxm/spring-oxm.xsd"> <2>
+		xsi:schemaLocation="http://www.springframework.org/schema/beans
+			https://www.springframework.org/schema/beans/spring-beans.xsd
+			http://www.springframework.org/schema/oxm
+			https://www.springframework.org/schema/oxm/spring-oxm.xsd"> <2>
 ----
 <1> Reference the `oxm` schema.
 <2> Specify the `oxm` schema location.

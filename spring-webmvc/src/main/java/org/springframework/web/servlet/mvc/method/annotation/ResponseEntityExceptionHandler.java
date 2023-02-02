@@ -61,8 +61,8 @@ import org.springframework.web.util.WebUtils;
  * for global exception handling in an application. Subclasses can override
  * individual methods that handle a specific exception, override
  * {@link #handleExceptionInternal} to override common handling of all exceptions,
- * or {@link #createResponseEntity} to intercept the final step of creating the
- * {@link ResponseEntity} from the selected HTTP status code, headers, and body.
+ * or override {@link #createResponseEntity} to intercept the final step of creating
+ * the {@link ResponseEntity} from the selected HTTP status code, headers, and body.
  *
  * @author Rossen Stoyanchev
  * @since 3.2
@@ -96,9 +96,18 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 		this.messageSource = messageSource;
 	}
 
+	/**
+	 * Get the {@link MessageSource} that this exception handler uses.
+	 * @since 6.0.3
+	 */
+	@Nullable
+	protected MessageSource getMessageSource() {
+		return this.messageSource;
+	}
+
 
 	/**
-	 * Handle all exceptions raised within Spring MVC handling of the request .
+	 * Handle all exceptions raised within Spring MVC handling of the request.
 	 * @param ex the exception to handle
 	 * @param request the current request
 	 */
@@ -508,10 +517,14 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 			Exception ex, HttpStatusCode status, String defaultDetail, @Nullable String detailMessageCode,
 			@Nullable Object[] detailMessageArguments, WebRequest request) {
 
-		ErrorResponse errorResponse = ErrorResponse.createFor(
-				ex, status, null, defaultDetail, detailMessageCode, detailMessageArguments);
-
-		return errorResponse.updateAndGetBody(this.messageSource, LocaleContextHolder.getLocale());
+		ErrorResponse.Builder builder = ErrorResponse.builder(ex, status, defaultDetail);
+		if (detailMessageCode != null) {
+			builder.detailMessageCode(detailMessageCode);
+		}
+		if (detailMessageArguments != null) {
+			builder.detailMessageArguments(detailMessageArguments);
+		}
+		return builder.build().updateAndGetBody(this.messageSource, LocaleContextHolder.getLocale());
 	}
 
 	/**

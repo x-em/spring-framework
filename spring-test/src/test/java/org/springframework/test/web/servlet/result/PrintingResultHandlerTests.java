@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -45,6 +43,7 @@ import org.springframework.web.servlet.ModelAndView;
 import static java.nio.charset.StandardCharsets.UTF_16;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link PrintingResultHandler}.
@@ -128,7 +127,7 @@ class PrintingResultHandlerTests {
 		String palindrome = "ablE was I ere I saw Elba";
 		byte[] bytes = palindrome.getBytes(UTF_16);
 		this.request.setContent(bytes);
-		this.request.setSession(Mockito.mock(HttpSession.class));
+		this.request.setSession(mock());
 
 		this.handler.handle(this.mvcResult);
 
@@ -168,7 +167,7 @@ class PrintingResultHandlerTests {
 
 		// Manually validate cookie values since maxAge changes...
 		List<String> cookieValues = this.response.getHeaders("Set-Cookie");
-		assertThat(cookieValues.size()).isEqualTo(2);
+		assertThat(cookieValues).hasSize(2);
 		assertThat(cookieValues.get(0)).isEqualTo("cookie=cookieValue");
 		assertThat(cookieValues.get(1).startsWith(
 				"enigma=42; Path=/crumbs; Domain=.example.com; Max-Age=1234; Expires=")).as("Actual: " + cookieValues.get(1)).isTrue();
@@ -176,7 +175,7 @@ class PrintingResultHandlerTests {
 		HttpHeaders headers = new HttpHeaders();
 		headers.set("header", "headerValue");
 		headers.setContentType(MediaType.TEXT_PLAIN);
-		headers.setLocation(new URI("/redirectFoo"));
+		headers.setLocation(URI.create("/redirectFoo"));
 		headers.put("Set-Cookie", cookieValues);
 
 		String heading = "MockHttpServletResponse";
@@ -190,7 +189,7 @@ class PrintingResultHandlerTests {
 
 		Map<String, Map<String, Object>> printedValues = this.handler.getPrinter().printedValues;
 		String[] cookies = (String[]) printedValues.get(heading).get("Cookies");
-		assertThat(cookies.length).isEqualTo(2);
+		assertThat(cookies).hasSize(2);
 		String cookie1 = cookies[0];
 		String cookie2 = cookies[1];
 		assertThat(cookie1.startsWith("[" + Cookie.class.getSimpleName())).isTrue();

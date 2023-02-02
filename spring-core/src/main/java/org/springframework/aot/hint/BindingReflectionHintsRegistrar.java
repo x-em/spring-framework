@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,15 @@
 
 package org.springframework.aot.hint;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import kotlin.jvm.JvmClassMappingKt;
 import kotlin.reflect.KClass;
@@ -71,7 +74,7 @@ public class BindingReflectionHintsRegistrar {
 	}
 
 	private boolean shouldSkipMembers(Class<?> type) {
-		return type.getCanonicalName().startsWith("java.") || type.isArray();
+		return (type.getCanonicalName() != null && type.getCanonicalName().startsWith("java.")) || type.isArray();
 	}
 
 	private void registerReflectionHints(ReflectionHints hints, Set<Type> seen, Type type) {
@@ -91,19 +94,17 @@ public class BindingReflectionHintsRegistrar {
 							registerRecordHints(hints, seen, recordComponent.getAccessor());
 						}
 					}
-					else {
-						typeHint.withMembers(
-								MemberCategory.DECLARED_FIELDS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
-						for (Method method : clazz.getMethods()) {
-							String methodName = method.getName();
-							if (methodName.startsWith("set") && method.getParameterCount() == 1) {
-								registerPropertyHints(hints, seen, method, 0);
-							}
-							else if ((methodName.startsWith("get") && method.getParameterCount() == 0 && method.getReturnType() != Void.TYPE) ||
-									(methodName.startsWith("is") && method.getParameterCount() == 0 && method.getReturnType() == boolean.class)) {
-								registerPropertyHints(hints, seen, method, -1);
-							}
+					typeHint.withMembers(
+							MemberCategory.DECLARED_FIELDS,
+							MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+					for (Method method : clazz.getMethods()) {
+						String methodName = method.getName();
+						if (methodName.startsWith("set") && method.getParameterCount() == 1) {
+							registerPropertyHints(hints, seen, method, 0);
+						}
+						else if ((methodName.startsWith("get") && method.getParameterCount() == 0 && method.getReturnType() != Void.TYPE) ||
+								(methodName.startsWith("is") && method.getParameterCount() == 0 && method.getReturnType() == boolean.class)) {
+							registerPropertyHints(hints, seen, method, -1);
 						}
 					}
 					if (jacksonAnnotationPresent) {
@@ -113,6 +114,8 @@ public class BindingReflectionHintsRegistrar {
 				if (KotlinDetector.isKotlinType(clazz)) {
 					KotlinDelegate.registerComponentHints(hints, clazz);
 					registerKotlinSerializationHints(hints, clazz);
+					// For Kotlin reflection
+					typeHint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS);
 				}
 			});
 		}
@@ -161,27 +164,32 @@ public class BindingReflectionHintsRegistrar {
 
 	private void registerJacksonHints(ReflectionHints hints, Class<?> clazz) {
 		ReflectionUtils.doWithFields(clazz, field ->
-				MergedAnnotations
-						.from(field, MergedAnnotations.SearchStrategy.TYPE_HIERARCHY)
-						.stream(JACKSON_ANNOTATION)
-						.filter(MergedAnnotation::isMetaPresent)
-						.forEach(annotation -> {
+				forEachJacksonAnnotation(field, annotation -> {
 							Field sourceField = (Field) annotation.getSource();
 							if (sourceField != null) {
 								hints.registerField(sourceField);
 							}
 						}));
 		ReflectionUtils.doWithMethods(clazz, method ->
-				MergedAnnotations
-						.from(method, MergedAnnotations.SearchStrategy.TYPE_HIERARCHY)
-						.stream(JACKSON_ANNOTATION)
-						.filter(MergedAnnotation::isMetaPresent)
-						.forEach(annotation -> {
+				forEachJacksonAnnotation(method, annotation -> {
 							Method sourceMethod = (Method) annotation.getSource();
 							if (sourceMethod != null) {
 								hints.registerMethod(sourceMethod, ExecutableMode.INVOKE);
 							}
 						}));
+		forEachJacksonAnnotation(clazz, annotation -> annotation.getRoot().asMap().values().forEach(value -> {
+			if (value instanceof Class<?> classValue) {
+				hints.registerType(classValue, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+			}
+		}));
+	}
+
+	private void forEachJacksonAnnotation(AnnotatedElement element, Consumer<MergedAnnotation<Annotation>> action) {
+		MergedAnnotations
+				.from(element, MergedAnnotations.SearchStrategy.TYPE_HIERARCHY)
+				.stream(JACKSON_ANNOTATION)
+				.filter(MergedAnnotation::isMetaPresent)
+				.forEach(action::accept);
 	}
 
 	/**
@@ -194,7 +202,7 @@ public class BindingReflectionHintsRegistrar {
 			if (kClass.isData()) {
 				for (Method method : type.getMethods()) {
 					String methodName = method.getName();
-					if (methodName.startsWith("component") || methodName.equals("copy")) {
+					if (methodName.startsWith("component") || methodName.equals("copy") || methodName.equals("copy$default")) {
 						hints.registerMethod(method, ExecutableMode.INVOKE);
 					}
 				}

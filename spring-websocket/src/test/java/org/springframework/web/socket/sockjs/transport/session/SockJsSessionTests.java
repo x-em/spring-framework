@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ class SockJsSessionTests extends AbstractSockJsSessionTests<TestSockJsSession> {
 		this.session.setActive(true);
 		this.session.close();
 
-		assertThat(this.session.getSockJsFramesWritten().size()).isEqualTo(1);
+		assertThat(this.session.getSockJsFramesWritten()).hasSize(1);
 		assertThat(this.session.getSockJsFramesWritten().get(0)).isEqualTo(SockJsFrame.closeFrameGoAway());
 
 		assertThat(this.session.getNumberOfLastActiveTimeUpdates()).isEqualTo(1);
@@ -235,7 +235,7 @@ class SockJsSessionTests extends AbstractSockJsSessionTests<TestSockJsSession> {
 	void writeFrame() {
 		this.session.writeFrame(SockJsFrame.openFrame());
 
-		assertThat(this.session.getSockJsFramesWritten().size()).isEqualTo(1);
+		assertThat(this.session.getSockJsFramesWritten()).hasSize(1);
 		assertThat(this.session.getSockJsFramesWritten().get(0)).isEqualTo(SockJsFrame.openFrame());
 	}
 
@@ -255,7 +255,7 @@ class SockJsSessionTests extends AbstractSockJsSessionTests<TestSockJsSession> {
 		this.session.setActive(true);
 		this.session.sendHeartbeat();
 
-		assertThat(this.session.getSockJsFramesWritten().size()).isEqualTo(1);
+		assertThat(this.session.getSockJsFramesWritten()).hasSize(1);
 		assertThat(this.session.getSockJsFramesWritten().get(0)).isEqualTo(SockJsFrame.heartbeatFrame());
 
 		verify(this.taskScheduler).schedule(any(Runnable.class), any(Instant.class));
@@ -281,7 +281,7 @@ class SockJsSessionTests extends AbstractSockJsSessionTests<TestSockJsSession> {
 
 	@Test
 	void scheduleAndCancelHeartbeat() {
-		ScheduledFuture<?> task = mock(ScheduledFuture.class);
+		ScheduledFuture<?> task = mock();
 		willReturn(task).given(this.taskScheduler).schedule(any(Runnable.class), any(Instant.class));
 
 		this.session.setActive(true);

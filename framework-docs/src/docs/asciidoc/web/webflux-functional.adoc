@@ -1,6 +1,6 @@
 [[webflux-fn]]
 = Functional Endpoints
-[.small]#<<web.adoc#webmvc-fn, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn, See equivalent in the Servlet stack>>#
 
 Spring WebFlux includes WebFlux.fn, a lightweight functional programming model in which functions
 are used to route and handle requests and contracts are designed for immutability.
@@ -12,7 +12,7 @@ the same <<web-reactive.adoc#webflux-reactive-spring-web>> foundation.
 
 [[webflux-fn-overview]]
 == Overview
-[.small]#<<web.adoc#webmvc-fn-overview, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn-overview, See equivalent in the Servlet stack>>#
 
 In WebFlux.fn, an HTTP request is handled with a `HandlerFunction`: a function that takes
 `ServerRequest` and returns a delayed `ServerResponse` (i.e. `Mono<ServerResponse>`).
@@ -98,7 +98,7 @@ as the following example shows:
 		}
 	}
 ----
-<1> Create router using Coroutines router DSL, a Reactive alternative is also available via `router { }`.
+<1> Create router using Coroutines router DSL; a Reactive alternative is also available via `router { }`.
 
 One way to run a `RouterFunction` is to turn it into an `HttpHandler` and install it
 through one of the built-in <<web-reactive.adoc#webflux-httphandler, server adapters>>:
@@ -113,7 +113,7 @@ Most applications can run through the WebFlux Java configuration, see <<webflux-
 
 [[webflux-fn-handler-functions]]
 == HandlerFunction
-[.small]#<<web.adoc#webmvc-fn-handler-functions, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn-handler-functions, See equivalent in the Servlet stack>>#
 
 `ServerRequest` and `ServerResponse` are immutable interfaces that offer JDK 8-friendly
 access to the HTTP request and response.
@@ -300,7 +300,6 @@ ServerResponse.created(location).build()
 Depending on the codec used, it is possible to pass hint parameters to customize how the
 body is serialized or deserialized. For example, to specify a https://www.baeldung.com/jackson-json-view-annotation[Jackson JSON view]:
 
-====
 [source,java,role="primary"]
 .Java
 ----
@@ -311,7 +310,6 @@ ServerResponse.ok().hint(Jackson2CodecSupport.JSON_VIEW_HINT, MyJacksonView.clas
 ----
 ServerResponse.ok().hint(Jackson2CodecSupport.JSON_VIEW_HINT, MyJacksonView::class.java).body(...)
 ----
-====
 
 
 [[webflux-fn-handler-classes]]
@@ -319,6 +317,7 @@ ServerResponse.ok().hint(Jackson2CodecSupport.JSON_VIEW_HINT, MyJacksonView::cla
 
 We can write a handler function as a lambda, as the following example shows:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -330,6 +329,7 @@ HandlerFunction<ServerResponse> helloWorld =
 ----
 val helloWorld = HandlerFunction<ServerResponse> { ServerResponse.ok().bodyValue("Hello World") }
 ----
+--
 
 That is convenient, but in an application we need multiple functions, and multiple inline
 lambda's can get messy.
@@ -337,6 +337,7 @@ Therefore, it is useful to group related handler functions together into a handl
 has a similar role as  `@Controller` in an annotation-based application.
 For example, the following class exposes a reactive `Person` repository:
 
+--
 [source,java,indent=0,subs="verbatim,quotes",role="primary"]
 .Java
 ----
@@ -411,6 +412,7 @@ Note that `PersonRepository.savePerson(Person)` is a suspending function with no
 <3> `getPerson` is a handler function that returns a single person, identified by the `id` path
 variable. We retrieve that `Person` from the repository and create a JSON response, if it is
 found. If it is not found, we return a 404 Not Found response.
+--
 
 
 [[webflux-fn-handler-validation]]
@@ -484,7 +486,7 @@ See <<core.adoc#validation-beanvalidation, Spring Validation>>.
 
 [[webflux-fn-router-functions]]
 == `RouterFunction`
-[.small]#<<web.adoc#webmvc-fn-router-functions, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn-router-functions, See equivalent in the Servlet stack>>#
 
 Router functions are used to route the requests to the corresponding `HandlerFunction`.
 Typically, you do not write router functions yourself, but rather use a method on the
@@ -525,8 +527,8 @@ header:
 ----
 	val route = coRouter {
 		GET("/hello-world", accept(TEXT_PLAIN)) {
-            ServerResponse.ok().bodyValueAndAwait("Hello World")
-        }
+			ServerResponse.ok().bodyValueAndAwait("Hello World")
+		}
 	}
 ----
 
@@ -642,7 +644,7 @@ RouterFunction<ServerResponse> route = route()
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
 .Kotlin
 ----
-	val route = coRouter {
+	val route = coRouter { // <1>
 		"/person".nest {
 			GET("/{id}", accept(APPLICATION_JSON), handler::getPerson)
 			GET(accept(APPLICATION_JSON), handler::listPeople)
@@ -650,6 +652,7 @@ RouterFunction<ServerResponse> route = route()
 		}
 	}
 ----
+<1> Create router using Coroutines router DSL; a Reactive alternative is also available via `router { }`.
 
 Though path-based nesting is the most common, you can nest on any kind of predicate by using
 the `nest` method on the builder.
@@ -684,7 +687,7 @@ We can further improve by using the `nest` method together with `accept`:
 
 [[webflux-fn-running]]
 == Running a Server
-[.small]#<<web.adoc#webmvc-fn-running, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn-running, See equivalent in the Servlet stack>>#
 
 How do you run a router function in an HTTP server? A simple option is to convert a router
 function to an `HttpHandler` by using one of the following:
@@ -790,7 +793,7 @@ The following example shows a WebFlux Java configuration (see
 
 [[webflux-fn-handler-filter-function]]
 == Filtering Handler Functions
-[.small]#<<web.adoc#webmvc-fn-handler-filter-function, Web MVC>>#
+[.small]#<<web.adoc#webmvc-fn-handler-filter-function, See equivalent in the Servlet stack>>#
 
 You can filter handler functions by using the `before`, `after`, or `filter` methods on the routing
 function builder.

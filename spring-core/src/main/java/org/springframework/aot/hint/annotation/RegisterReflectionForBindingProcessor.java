@@ -30,14 +30,17 @@ import org.springframework.util.Assert;
  *
  * @author Sebastien Deleuze
  * @since 6.0
+ * @see RegisterReflectionForBinding @RegisterReflectionForBinding
  */
 public class RegisterReflectionForBindingProcessor implements ReflectiveProcessor {
 
 	private final BindingReflectionHintsRegistrar bindingRegistrar = new BindingReflectionHintsRegistrar();
 
+
 	@Override
 	public void registerReflectionHints(ReflectionHints hints, AnnotatedElement element) {
-		RegisterReflectionForBinding registerReflection = AnnotationUtils.getAnnotation(element, RegisterReflectionForBinding.class);
+		RegisterReflectionForBinding registerReflection =
+				AnnotationUtils.getAnnotation(element, RegisterReflectionForBinding.class);
 		if (registerReflection != null) {
 			Class<?>[] classes = registerReflection.classes();
 			Assert.state(classes.length != 0, () -> "A least one class should be specified in " +

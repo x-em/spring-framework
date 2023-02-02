@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class RestTemplateXhrTransportTests {
 
 	private static final Jackson2SockJsMessageCodec CODEC = new Jackson2SockJsMessageCodec();
 
-	private final WebSocketHandler webSocketHandler = mock(WebSocketHandler.class);
+	private final WebSocketHandler webSocketHandler = mock();
 
 
 	@Test
@@ -130,9 +130,9 @@ class RestTemplateXhrTransportTests {
 
 	@Test
 	@SuppressWarnings("deprecation")
-	void connectFailure() throws Exception {
+	void connectFailure() {
 		final HttpServerErrorException expected = new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR);
-		RestOperations restTemplate = mock(RestOperations.class);
+		RestOperations restTemplate = mock();
 		given(restTemplate.execute((URI) any(), eq(HttpMethod.POST), any(), any())).willThrow(expected);
 
 		final CountDownLatch latch = new CountDownLatch(1);
@@ -180,18 +180,18 @@ class RestTemplateXhrTransportTests {
 
 	@SuppressWarnings("deprecation")
 	private org.springframework.util.concurrent.ListenableFuture<WebSocketSession> connect(
-			ClientHttpResponse... responses) throws Exception {
+			ClientHttpResponse... responses) {
 		return connect(new TestRestTemplate(responses));
 	}
 
 	@SuppressWarnings("deprecation")
 	private org.springframework.util.concurrent.ListenableFuture<WebSocketSession> connect(
-			RestOperations restTemplate, ClientHttpResponse... responses) throws Exception {
+			RestOperations restTemplate, ClientHttpResponse... responses) {
 
 		RestTemplateXhrTransport transport = new RestTemplateXhrTransport(restTemplate);
 		transport.setTaskExecutor(new SyncTaskExecutor());
 
-		SockJsUrlInfo urlInfo = new SockJsUrlInfo(new URI("https://example.com"));
+		SockJsUrlInfo urlInfo = new SockJsUrlInfo(URI.create("https://example.com"));
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("h-foo", "h-bar");
 		TransportRequest request = new DefaultTransportRequest(urlInfo, headers, headers,
@@ -201,7 +201,7 @@ class RestTemplateXhrTransportTests {
 	}
 
 	private ClientHttpResponse response(HttpStatus status, String body) throws IOException {
-		ClientHttpResponse response = mock(ClientHttpResponse.class);
+		ClientHttpResponse response = mock();
 		InputStream inputStream = getInputStream(body);
 		given(response.getStatusCode()).willReturn(status);
 		given(response.getBody()).willReturn(inputStream);
