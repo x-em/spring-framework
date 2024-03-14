@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ import org.springframework.util.NumberUtils;
  */
 public class StandardTypeComparator implements TypeComparator {
 
+	static final StandardTypeComparator INSTANCE = new StandardTypeComparator();
+
 	@Override
 	public boolean canCompare(@Nullable Object left, @Nullable Object right) {
 		if (left == null || right == null) {
@@ -53,7 +55,7 @@ public class StandardTypeComparator implements TypeComparator {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	public int compare(@Nullable Object left, @Nullable Object right) throws SpelEvaluationException {
 		// If one is null, check if the other is
 		if (left == null) {
@@ -100,8 +102,8 @@ public class StandardTypeComparator implements TypeComparator {
 		}
 
 		try {
-			if (left instanceof Comparable) {
-				return ((Comparable<Object>) left).compareTo(right);
+			if (left instanceof Comparable comparable) {
+				return comparable.compareTo(right);
 			}
 		}
 		catch (ClassCastException ex) {

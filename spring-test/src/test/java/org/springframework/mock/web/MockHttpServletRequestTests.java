@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
- * Unit tests for {@link MockHttpServletRequest}.
+ * Tests for {@link MockHttpServletRequest}.
  *
  * @author Rick Evans
  * @author Mark Fisher
@@ -114,7 +114,7 @@ class MockHttpServletRequestTests {
 	}
 
 	@Test
-	void getContentAsStringWithoutSettingCharacterEncoding() throws IOException {
+	void getContentAsStringWithoutSettingCharacterEncoding() {
 		assertThatIllegalStateException().isThrownBy(
 				request::getContentAsString)
 			.withMessageContaining("Cannot get content as a String for a null character encoding");
@@ -145,14 +145,14 @@ class MockHttpServletRequestTests {
 	}
 
 	@Test  // SPR-16505
-	void getInputStreamTwice() throws IOException {
+	void getInputStreamTwice() {
 		byte[] bytes = "body".getBytes(Charset.defaultCharset());
 		request.setContent(bytes);
 		assertThat(request.getInputStream()).isSameAs(request.getInputStream());
 	}
 
 	@Test  // SPR-16499
-	void getReaderAfterGettingInputStream() throws IOException {
+	void getReaderAfterGettingInputStream() {
 		request.getInputStream();
 		assertThatIllegalStateException().isThrownBy(
 				request::getReader)
@@ -183,6 +183,15 @@ class MockHttpServletRequestTests {
 		assertThat(request.getContentType()).isEqualTo(contentType);
 		assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(contentType);
 		assertThat(request.getCharacterEncoding()).isEqualTo("UTF-8");
+	}
+
+	@Test // gh-29255
+	void setContentTypeInvalidWithNonAsciiCharacterAndCharset() {
+		String contentType = "İcharset=";
+		request.addHeader(HttpHeaders.CONTENT_TYPE, contentType);
+		assertThat(request.getContentType()).isEqualTo(contentType);
+		assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(contentType);
+		assertThat(request.getCharacterEncoding()).isEqualTo("");
 	}
 
 	@Test
@@ -373,7 +382,7 @@ class MockHttpServletRequestTests {
 	void emptyAcceptLanguageHeader() {
 		request.addHeader("Accept-Language", "");
 		assertThat(request.getLocale()).isEqualTo(Locale.ENGLISH);
-		assertThat(request.getHeader("Accept-Language")).isEqualTo("");
+		assertThat(request.getHeader("Accept-Language")).isEmpty();
 	}
 
 	@Test

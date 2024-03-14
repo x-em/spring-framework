@@ -189,20 +189,15 @@ public class PropertyValue extends BeanMetadataAttributeAccessor implements Seri
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof PropertyValue otherPv)) {
-			return false;
-		}
-		return (this.name.equals(otherPv.name) &&
-				ObjectUtils.nullSafeEquals(this.value, otherPv.value) &&
-				ObjectUtils.nullSafeEquals(getSource(), otherPv.getSource()));
+		return (this == other || (other instanceof PropertyValue that &&
+				this.name.equals(that.name) &&
+				ObjectUtils.nullSafeEquals(this.value, that.value) &&
+				ObjectUtils.nullSafeEquals(getSource(), that.getSource())));
 	}
 
 	@Override
 	public int hashCode() {
-		return this.name.hashCode() * 29 + ObjectUtils.nullSafeHashCode(this.value);
+		return ObjectUtils.nullSafeHash(this.name, this.value);
 	}
 
 	@Override

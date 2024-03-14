@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,13 +31,13 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  * @author Karl Pietrzak
  * @author Juergen Hoeller
  */
-public class LookupAnnotationTests {
+class LookupAnnotationTests {
 
 	private DefaultListableBeanFactory beanFactory;
 
 
 	@BeforeEach
-	public void setup() {
+	void setup() {
 		beanFactory = new DefaultListableBeanFactory();
 		AutowiredAnnotationBeanPostProcessor aabpp = new AutowiredAnnotationBeanPostProcessor();
 		aabpp.setBeanFactory(beanFactory);
@@ -51,18 +51,16 @@ public class LookupAnnotationTests {
 
 
 	@Test
-	public void testWithoutConstructorArg() {
+	void testWithoutConstructorArg() {
 		AbstractBean bean = (AbstractBean) beanFactory.getBean("abstractBean");
-		assertThat(bean).isNotNull();
 		Object expected = bean.get();
 		assertThat(expected.getClass()).isEqualTo(TestBean.class);
 		assertThat(beanFactory.getBean(BeanConsumer.class).abstractBean).isSameAs(bean);
 	}
 
 	@Test
-	public void testWithOverloadedArg() {
+	void testWithOverloadedArg() {
 		AbstractBean bean = (AbstractBean) beanFactory.getBean("abstractBean");
-		assertThat(bean).isNotNull();
 		TestBean expected = bean.get("haha");
 		assertThat(expected.getClass()).isEqualTo(TestBean.class);
 		assertThat(expected.getName()).isEqualTo("haha");
@@ -70,9 +68,8 @@ public class LookupAnnotationTests {
 	}
 
 	@Test
-	public void testWithOneConstructorArg() {
+	void testWithOneConstructorArg() {
 		AbstractBean bean = (AbstractBean) beanFactory.getBean("abstractBean");
-		assertThat(bean).isNotNull();
 		TestBean expected = bean.getOneArgument("haha");
 		assertThat(expected.getClass()).isEqualTo(TestBean.class);
 		assertThat(expected.getName()).isEqualTo("haha");
@@ -80,9 +77,8 @@ public class LookupAnnotationTests {
 	}
 
 	@Test
-	public void testWithTwoConstructorArg() {
+	void testWithTwoConstructorArg() {
 		AbstractBean bean = (AbstractBean) beanFactory.getBean("abstractBean");
-		assertThat(bean).isNotNull();
 		TestBean expected = bean.getTwoArguments("haha", 72);
 		assertThat(expected.getClass()).isEqualTo(TestBean.class);
 		assertThat(expected.getName()).isEqualTo("haha");
@@ -91,18 +87,16 @@ public class LookupAnnotationTests {
 	}
 
 	@Test
-	public void testWithThreeArgsShouldFail() {
+	void testWithThreeArgsShouldFail() {
 		AbstractBean bean = (AbstractBean) beanFactory.getBean("abstractBean");
-		assertThat(bean).isNotNull();
 		assertThatExceptionOfType(AbstractMethodError.class).as("TestBean has no three arg constructor").isThrownBy(() ->
 				bean.getThreeArguments("name", 1, 2));
 		assertThat(beanFactory.getBean(BeanConsumer.class).abstractBean).isSameAs(bean);
 	}
 
 	@Test
-	public void testWithEarlyInjection() {
+	void testWithEarlyInjection() {
 		AbstractBean bean = beanFactory.getBean("beanConsumer", BeanConsumer.class).abstractBean;
-		assertThat(bean).isNotNull();
 		Object expected = bean.get();
 		assertThat(expected.getClass()).isEqualTo(TestBean.class);
 		assertThat(beanFactory.getBean(BeanConsumer.class).abstractBean).isSameAs(bean);
@@ -115,26 +109,54 @@ public class LookupAnnotationTests {
 		beanFactory.registerBeanDefinition("testBean", tbd);
 
 		AbstractBean bean = beanFactory.getBean("beanConsumer", BeanConsumer.class).abstractBean;
-		assertThat(bean).isNotNull();
 		Object expected = bean.get();
 		assertThat(expected).isNull();
 		assertThat(beanFactory.getBean(BeanConsumer.class).abstractBean).isSameAs(bean);
 	}
 
 	@Test
-	public void testWithGenericBean() {
+	void testWithGenericBean() {
 		beanFactory.registerBeanDefinition("numberBean", new RootBeanDefinition(NumberBean.class));
 		beanFactory.registerBeanDefinition("doubleStore", new RootBeanDefinition(DoubleStore.class));
 		beanFactory.registerBeanDefinition("floatStore", new RootBeanDefinition(FloatStore.class));
 
 		NumberBean bean = (NumberBean) beanFactory.getBean("numberBean");
-		assertThat(bean).isNotNull();
+		assertThat(beanFactory.getBean(DoubleStore.class)).isSameAs(bean.getDoubleStore());
+		assertThat(beanFactory.getBean(FloatStore.class)).isSameAs(bean.getFloatStore());
+	}
+
+	@Test
+	void testSingletonWithoutMetadataCaching() {
+		beanFactory.setCacheBeanMetadata(false);
+
+		beanFactory.registerBeanDefinition("numberBean", new RootBeanDefinition(NumberBean.class));
+		beanFactory.registerBeanDefinition("doubleStore", new RootBeanDefinition(DoubleStore.class));
+		beanFactory.registerBeanDefinition("floatStore", new RootBeanDefinition(FloatStore.class));
+
+		NumberBean bean = (NumberBean) beanFactory.getBean("numberBean");
+		assertThat(beanFactory.getBean(DoubleStore.class)).isSameAs(bean.getDoubleStore());
+		assertThat(beanFactory.getBean(FloatStore.class)).isSameAs(bean.getFloatStore());
+	}
+
+	@Test
+	void testPrototypeWithoutMetadataCaching() {
+		beanFactory.setCacheBeanMetadata(false);
+
+		beanFactory.registerBeanDefinition("numberBean", new RootBeanDefinition(NumberBean.class, BeanDefinition.SCOPE_PROTOTYPE, null));
+		beanFactory.registerBeanDefinition("doubleStore", new RootBeanDefinition(DoubleStore.class));
+		beanFactory.registerBeanDefinition("floatStore", new RootBeanDefinition(FloatStore.class));
+
+		NumberBean bean = (NumberBean) beanFactory.getBean("numberBean");
+		assertThat(beanFactory.getBean(DoubleStore.class)).isSameAs(bean.getDoubleStore());
+		assertThat(beanFactory.getBean(FloatStore.class)).isSameAs(bean.getFloatStore());
+
+		bean = (NumberBean) beanFactory.getBean("numberBean");
 		assertThat(beanFactory.getBean(DoubleStore.class)).isSameAs(bean.getDoubleStore());
 		assertThat(beanFactory.getBean(FloatStore.class)).isSameAs(bean.getFloatStore());
 	}
 
 
-	public static abstract class AbstractBean {
+	public abstract static class AbstractBean {
 
 		@Lookup("testBean")
 		public abstract TestBean get();
@@ -172,7 +194,7 @@ public class LookupAnnotationTests {
 	}
 
 
-	public static abstract class NumberBean {
+	public abstract static class NumberBean {
 
 		@Lookup
 		public abstract NumberStore<Double> getDoubleStore();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package org.springframework.beans.factory.config;
+
+import java.util.Comparator;
 
 import org.springframework.beans.BeanMetadataElement;
 import org.springframework.lang.Nullable;
@@ -35,7 +37,7 @@ import org.springframework.util.ObjectUtils;
  * @see BeanDefinition#getPropertyValues
  * @see org.springframework.beans.MutablePropertyValues#addPropertyValue
  */
-public class TypedStringValue implements BeanMetadataElement {
+public class TypedStringValue implements BeanMetadataElement, Comparable<TypedStringValue> {
 
 	@Nullable
 	private String value;
@@ -213,22 +215,21 @@ public class TypedStringValue implements BeanMetadataElement {
 		return this.dynamic;
 	}
 
+	@Override
+	public int compareTo(@Nullable TypedStringValue o) {
+		return Comparator.comparing(TypedStringValue::getValue).compare(this, o);
+	}
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof TypedStringValue otherValue)) {
-			return false;
-		}
-		return (ObjectUtils.nullSafeEquals(this.value, otherValue.value) &&
-				ObjectUtils.nullSafeEquals(this.targetType, otherValue.targetType));
+		return (this == other || (other instanceof TypedStringValue that &&
+				ObjectUtils.nullSafeEquals(this.value, that.value) &&
+				ObjectUtils.nullSafeEquals(this.targetType, that.targetType)));
 	}
 
 	@Override
 	public int hashCode() {
-		return ObjectUtils.nullSafeHashCode(this.value) * 29 + ObjectUtils.nullSafeHashCode(this.targetType);
+		return ObjectUtils.nullSafeHash(this.value, this.targetType);
 	}
 
 	@Override

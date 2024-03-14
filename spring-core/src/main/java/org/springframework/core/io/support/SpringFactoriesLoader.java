@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -341,9 +341,10 @@ public class SpringFactoriesLoader {
 				UrlResource resource = new UrlResource(urls.nextElement());
 				Properties properties = PropertiesLoaderUtils.loadProperties(resource);
 				properties.forEach((name, value) -> {
-					List<String> implementations = result.computeIfAbsent(((String) name).trim(), key -> new ArrayList<>());
-					Arrays.stream(StringUtils.commaDelimitedListToStringArray((String) value))
-							.map(String::trim).forEach(implementations::add);
+					String[] factoryImplementationNames = StringUtils.commaDelimitedListToStringArray((String) value);
+					List<String> implementations = result.computeIfAbsent(((String) name).trim(),
+							key -> new ArrayList<>(factoryImplementationNames.length));
+					Arrays.stream(factoryImplementationNames).map(String::trim).forEach(implementations::add);
 				});
 			}
 			result.replaceAll(SpringFactoriesLoader::toDistinctUnmodifiableList);
@@ -497,7 +498,6 @@ public class SpringFactoriesLoader {
 
 	/**
 	 * Strategy for resolving constructor arguments based on their type.
-	 *
 	 * @since 6.0
 	 * @see ArgumentResolver#of(Class, Object)
 	 * @see ArgumentResolver#ofSupplied(Class, Supplier)
@@ -594,13 +594,11 @@ public class SpringFactoriesLoader {
 		 */
 		static ArgumentResolver from(Function<Class<?>, Object> function) {
 			return new ArgumentResolver() {
-
 				@SuppressWarnings("unchecked")
 				@Override
 				public <T> T resolve(Class<T> type) {
 					return (T) function.apply(type);
 				}
-
 			};
 		}
 	}
@@ -608,7 +606,6 @@ public class SpringFactoriesLoader {
 
 	/**
 	 * Strategy for handling a failure that occurs when instantiating a factory.
-	 *
 	 * @since 6.0
 	 * @see FailureHandler#throwing()
 	 * @see FailureHandler#logging(Log)
@@ -670,7 +667,7 @@ public class SpringFactoriesLoader {
 		static FailureHandler handleMessage(BiConsumer<Supplier<String>, Throwable> messageHandler) {
 			return (factoryType, factoryImplementationName, failure) -> {
 				Supplier<String> messageSupplier = () -> "Unable to instantiate factory class [%s] for factory type [%s]"
-					.formatted(factoryImplementationName, factoryType.getName());
+						.formatted(factoryImplementationName, factoryType.getName());
 				messageHandler.accept(messageSupplier, failure);
 			};
 		}

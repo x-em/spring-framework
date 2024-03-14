@@ -90,28 +90,23 @@ public class GenericMessage<T> implements Message<T>, Serializable {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof GenericMessage<?> otherMsg)) {
-			return false;
-		}
 		// Using nullSafeEquals for proper array equals comparisons
-		return (ObjectUtils.nullSafeEquals(this.payload, otherMsg.payload) && this.headers.equals(otherMsg.headers));
+		return (this == other || (other instanceof GenericMessage<?> that &&
+				ObjectUtils.nullSafeEquals(this.payload, that.payload) && this.headers.equals(that.headers)));
 	}
 
 	@Override
 	public int hashCode() {
 		// Using nullSafeHashCode for proper array hashCode handling
-		return (ObjectUtils.nullSafeHashCode(this.payload) * 23 + this.headers.hashCode());
+		return ObjectUtils.nullSafeHash(this.payload, this.headers);
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder(getClass().getSimpleName());
 		sb.append(" [payload=");
-		if (this.payload instanceof byte[]) {
-			sb.append("byte[").append(((byte[]) this.payload).length).append(']');
+		if (this.payload instanceof byte[] bytes) {
+			sb.append("byte[").append(bytes.length).append(']');
 		}
 		else {
 			sb.append(this.payload);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import javax.lang.model.element.Modifier;
 
@@ -29,7 +30,10 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.aot.generate.MethodReference;
 import org.springframework.aot.generate.MethodReference.ArgumentCodeGenerator;
+import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.ResourcePatternHint;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.aot.test.generate.TestGenerationContext;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
@@ -50,6 +54,7 @@ import org.springframework.context.testfixture.context.generator.SimpleComponent
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.io.support.DefaultPropertySourceFactory;
 import org.springframework.core.test.tools.Compiled;
 import org.springframework.core.test.tools.TestCompiler;
 import org.springframework.core.type.AnnotationMetadata;
@@ -60,6 +65,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.entry;
 
 /**
@@ -67,6 +73,7 @@ import static org.assertj.core.api.Assertions.entry;
  *
  * @author Phillip Webb
  * @author Stephane Nicoll
+ * @author Sam Brannen
  */
 class ConfigurationClassPostProcessorAotContributionTests {
 
@@ -112,8 +119,8 @@ class ConfigurationClassPostProcessorAotContributionTests {
 				freshContext.refresh();
 				TestAwareCallbackBean bean = freshContext.getBean(TestAwareCallbackBean.class);
 				assertThat(bean.instances).hasSize(2);
-				assertThat(bean.instances.get(0)).isEqualTo(freshContext);
-				assertThat(bean.instances.get(1)).isInstanceOfSatisfying(AnnotationMetadata.class, metadata ->
+				assertThat(bean.instances).element(0).isEqualTo(freshContext);
+				assertThat(bean.instances).element(1).isInstanceOfSatisfying(AnnotationMetadata.class, metadata ->
 						assertThat(metadata.getClassName()).isEqualTo(TestAwareCallbackConfiguration.class.getName()));
 				freshContext.close();
 			});
@@ -231,7 +238,7 @@ class ConfigurationClassPostProcessorAotContributionTests {
 			}
 
 			@Override
-			public void afterPropertiesSet() throws Exception {
+			public void afterPropertiesSet() {
 				Assert.notNull(this.metadata, "Metadata was not injected");
 			}
 
@@ -246,6 +253,8 @@ class ConfigurationClassPostProcessorAotContributionTests {
 			BeanFactoryInitializationAotContribution contribution = getContribution(
 					PropertySourceConfiguration.class);
 			contribution.applyTo(generationContext, beanFactoryInitializationCode);
+			assertThat(resource("org/springframework/context/annotation/p1.properties"))
+					.accepts(generationContext.getRuntimeHints());
 			compile((initializer, compiled) -> {
 				GenericApplicationContext freshContext = new GenericApplicationContext();
 				ConfigurableEnvironment environment = freshContext.getEnvironment();
@@ -258,10 +267,49 @@ class ConfigurationClassPostProcessorAotContributionTests {
 		}
 
 		@Test
+		void propertySourceWithClassPathStarLocationPattern() {
+			BeanFactoryInitializationAotContribution contribution =
+					getContribution(PropertySourceWithClassPathStarLocationPatternConfiguration.class);
+
+			// We can effectively only assert that an exception is not thrown; however,
+			// a WARN-level log message similar to the following should be logged.
+			//
+			// Runtime hint registration is not supported for the 'classpath*:' prefix or wildcards
+			// in @PropertySource locations. Please manually register a resource hint for each property
+			// source location represented by 'classpath*:org/springframework/context/annotation/*.properties'.
+			assertThatNoException().isThrownBy(() -> contribution.applyTo(generationContext, beanFactoryInitializationCode));
+
+			// But we can also ensure that a resource hint was not registered.
+			assertThat(resource("org/springframework/context/annotation/p1.properties"))
+					.rejects(generationContext.getRuntimeHints());
+		}
+
+		@Test
+		void propertySourceWithWildcardLocationPattern() {
+			BeanFactoryInitializationAotContribution contribution =
+					getContribution(PropertySourceWithWildcardLocationPatternConfiguration.class);
+
+			// We can effectively only assert that an exception is not thrown; however,
+			// a WARN-level log message similar to the following should be logged.
+			//
+			// Runtime hint registration is not supported for the 'classpath*:' prefix or wildcards
+			// in @PropertySource locations. Please manually register a resource hint for each property
+			// source location represented by 'classpath:org/springframework/context/annotation/p?.properties'.
+			assertThatNoException().isThrownBy(() -> contribution.applyTo(generationContext, beanFactoryInitializationCode));
+
+			// But we can also ensure that a resource hint was not registered.
+			assertThat(resource("org/springframework/context/annotation/p1.properties"))
+					.rejects(generationContext.getRuntimeHints());
+		}
+
+		@Test
 		void applyToWhenHasPropertySourcesInvokesPropertySourceProcessorInOrder() {
 			BeanFactoryInitializationAotContribution contribution = getContribution(
 					PropertySourceConfiguration.class, PropertySourceDependentConfiguration.class);
 			contribution.applyTo(generationContext, beanFactoryInitializationCode);
+			assertThat(resource("org/springframework/context/annotation/p1.properties")
+					.and(resource("org/springframework/context/annotation/p2.properties")))
+					.accepts(generationContext.getRuntimeHints());
 			compile((initializer, compiled) -> {
 				GenericApplicationContext freshContext = new GenericApplicationContext();
 				ConfigurableEnvironment environment = freshContext.getEnvironment();
@@ -289,6 +337,20 @@ class ConfigurationClassPostProcessorAotContributionTests {
 				assertThat(environment.getPropertySources().get("testp1")).isNotNull();
 				freshContext.close();
 			});
+		}
+
+		@Test
+		void applyToWhenHasCustomFactoryRegistersHints() {
+			BeanFactoryInitializationAotContribution contribution = getContribution(
+					PropertySourceWithCustomFactoryConfiguration.class);
+			contribution.applyTo(generationContext, beanFactoryInitializationCode);
+			assertThat(RuntimeHintsPredicates.reflection().onType(CustomPropertySourcesFactory.class)
+					.withMemberCategories(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+					.accepts(generationContext.getRuntimeHints());
+		}
+
+		private Predicate<RuntimeHints> resource(String location) {
+			return RuntimeHintsPredicates.resource().forResource(location);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -330,6 +392,23 @@ class ConfigurationClassPostProcessorAotContributionTests {
 				ignoreResourceNotFound = true)
 		static class PropertySourceWithDetailsConfiguration {
 
+		}
+
+		@Configuration(proxyBeanMethods = false)
+		@PropertySource(value = "classpath:org/springframework/context/annotation/p1.properties",
+				factory = CustomPropertySourcesFactory.class)
+		static class PropertySourceWithCustomFactoryConfiguration {
+
+		}
+
+		@Configuration(proxyBeanMethods = false)
+		@PropertySource("classpath*:org/springframework/context/annotation/*.properties")
+		static class PropertySourceWithClassPathStarLocationPatternConfiguration {
+		}
+
+		@Configuration(proxyBeanMethods = false)
+		@PropertySource("classpath:org/springframework/context/annotation/p?.properties")
+		static class PropertySourceWithWildcardLocationPatternConfiguration {
 		}
 
 	}
@@ -377,6 +456,10 @@ class ConfigurationClassPostProcessorAotContributionTests {
 		assertThat(postProcessor).extracting("importsMapping")
 				.asInstanceOf(InstanceOfAssertFactories.MAP)
 				.containsExactly(entry(key.getName(), value.getName()));
+	}
+
+	static class CustomPropertySourcesFactory extends DefaultPropertySourceFactory {
+
 	}
 
 }

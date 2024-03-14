@@ -8,8 +8,9 @@ apply plugin: 'me.champeau.jmh'
 apply from: "$rootDir/gradle/publications.gradle"
 
 dependencies {
-	jmh 'org.openjdk.jmh:jmh-core:1.36'
-	jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.36'
+	jmh 'org.openjdk.jmh:jmh-core:1.37'
+	jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
+	jmh 'org.openjdk.jmh:jmh-generator-bytecode:1.37'
 	jmh 'net.sf.jopt-simple:jopt-simple'
 }
 
@@ -72,10 +73,13 @@ javadoc {
 	options.header = project.name
 	options.use = true
 	options.links(project.ext.javadocLinks)
-	options.addStringOption("Xdoclint:none", "-quiet")
+	// Check for syntax during linting. 'none' doesn't seem to work in suppressing
+	// all linting warnings all the time (see/link references most notably).
+	options.addStringOption("Xdoclint:syntax", "-quiet")
 
 	// Suppress warnings due to cross-module @see and @link references.
-	// Note that global 'api' task does display all warnings.
+	// Note that global 'api' task does display all warnings, and
+	// checks for 'reference' on top of 'syntax'.
 	logging.captureStandardError LogLevel.INFO
 	logging.captureStandardOutput LogLevel.INFO  // suppress "## warnings" message
 }

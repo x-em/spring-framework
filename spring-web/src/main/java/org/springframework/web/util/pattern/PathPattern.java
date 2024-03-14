@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.StringJoiner;
 
 import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.PathContainer.Element;
+import org.springframework.http.server.PathContainer.PathSegment;
 import org.springframework.http.server.PathContainer.Separator;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
@@ -42,7 +43,8 @@ import org.springframework.util.StringUtils;
  * <li>{@code *} matches zero or more characters within a path segment</li>
  * <li>{@code **} matches zero or more <em>path segments</em> until the end of the path</li>
  * <li><code>{spring}</code> matches a <em>path segment</em> and captures it as a variable named "spring"</li>
- * <li><code>{spring:[a-z]+}</code> matches the regexp {@code [a-z]+} as a path variable named "spring"</li>
+ * <li><code>{spring:[a-z]+}</code> matches the regexp {@code [a-z]+} against a path segment
+ * and captures it a path variable named "spring"</li>
  * <li><code>{*spring}</code> matches zero or more <em>path segments</em> until the end of the path
  * and captures it as a variable named "spring"</li>
  * </ul>
@@ -431,12 +433,10 @@ public class PathPattern implements Comparable<PathPattern> {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (!(other instanceof PathPattern otherPattern)) {
-			return false;
-		}
-		return (this.patternString.equals(otherPattern.getPatternString()) &&
-				getSeparator() == otherPattern.getSeparator() &&
-				this.caseSensitive == otherPattern.caseSensitive);
+		return (this == other || (other instanceof PathPattern that &&
+				this.patternString.equals(that.getPatternString()) &&
+				getSeparator() == that.getSeparator() &&
+				this.caseSensitive == that.caseSensitive));
 	}
 
 	@Override
@@ -600,13 +600,11 @@ public class PathPattern implements Comparable<PathPattern> {
 
 		private final PathMatchInfo pathMatchInfo;
 
-
 		PathRemainingMatchInfo(PathContainer pathMatched, PathContainer pathRemaining) {
 			this(pathMatched, pathRemaining, PathMatchInfo.EMPTY);
 		}
 
-		PathRemainingMatchInfo(PathContainer pathMatched, PathContainer pathRemaining,
-				PathMatchInfo pathMatchInfo) {
+		PathRemainingMatchInfo(PathContainer pathMatched, PathContainer pathRemaining, PathMatchInfo pathMatchInfo) {
 			this.pathRemaining = pathRemaining;
 			this.pathMatched = pathMatched;
 			this.pathMatchInfo = pathMatchInfo;
@@ -726,7 +724,7 @@ public class PathPattern implements Comparable<PathPattern> {
 		 */
 		String pathElementValue(int pathIndex) {
 			Element element = (pathIndex < this.pathLength) ? this.pathElements.get(pathIndex) : null;
-			return (element instanceof PathContainer.PathSegment pathSegment ? pathSegment.valueToMatch() : "");
+			return (element instanceof PathSegment pathSegment ? pathSegment.valueToMatch() : "");
 		}
 	}
 

@@ -52,11 +52,11 @@ class ExecutingResponseCreatorTests {
 
 	@Test
 	void ensureRequestIsMock() {
-		final ExecutingResponseCreator responseCreator = new ExecutingResponseCreator((uri, method) -> null);
-		ClientHttpRequest notAMockRequest = mock();
+		ExecutingResponseCreator responseCreator = new ExecutingResponseCreator((uri, method) -> null);
+		ClientHttpRequest mockitoMockRequest = mock();
 
 		assertThatIllegalStateException()
-				.isThrownBy(() -> responseCreator.createResponse(notAMockRequest))
+				.isThrownBy(() -> responseCreator.createResponse(mockitoMockRequest))
 				.withMessage("Expected a MockClientHttpRequest");
 	}
 
@@ -86,10 +86,10 @@ class ExecutingResponseCreatorTests {
 				.first()
 				.isNotSameAs(originalRequest)
 				.satisfies(request -> {
-					assertThat(request).isNotSameAs(originalRequest);
 					assertThat(request.isExecuted()).isTrue();
 					assertThat(request.getBody()).isNotSameAs(originalRequest.getBody());
 					assertThat(request.getHeaders()).isNotSameAs(originalRequest.getHeaders());
 				});
 	}
+
 }

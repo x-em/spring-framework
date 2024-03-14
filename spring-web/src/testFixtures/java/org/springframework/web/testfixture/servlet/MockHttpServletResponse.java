@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -201,15 +202,42 @@ public class MockHttpServletResponse implements HttpServletResponse {
 	}
 
 	@Override
-	public void setCharacterEncoding(String characterEncoding) {
+	public void setCharacterEncoding(@Nullable String characterEncoding) {
 		setExplicitCharacterEncoding(characterEncoding);
 		updateContentTypePropertyAndHeader();
 	}
 
-	private void setExplicitCharacterEncoding(String characterEncoding) {
-		Assert.notNull(characterEncoding, "'characterEncoding' must not be null");
-		this.characterEncoding = characterEncoding;
-		this.characterEncodingSet = true;
+	private void setExplicitCharacterEncoding(@Nullable String characterEncoding) {
+		if (characterEncoding == null) {
+			this.characterEncoding = this.defaultCharacterEncoding;
+			this.characterEncodingSet = false;
+			if (this.contentType != null) {
+				try {
+					MediaType mediaType = MediaType.parseMediaType(this.contentType);
+					if (mediaType.getCharset() != null) {
+						Map<String, String> parameters = new LinkedHashMap<>(mediaType.getParameters());
+						parameters.remove("charset");
+						mediaType = new MediaType(mediaType.getType(), mediaType.getSubtype(), parameters);
+						this.contentType = mediaType.toString();
+					}
+				}
+				catch (Exception ignored) {
+					String value = this.contentType;
+					int charsetIndex = value.toLowerCase().indexOf(CHARSET_PREFIX);
+					if (charsetIndex != -1) {
+						value = value.substring(0, charsetIndex).trim();
+						if (value.endsWith(";")) {
+							value = value.substring(0, value.length() - 1);
+						}
+						this.contentType = value;
+					}
+				}
+			}
+		}
+		else {
+			this.characterEncoding = characterEncoding;
+			this.characterEncodingSet = true;
+		}
 	}
 
 	private void updateContentTypePropertyAndHeader() {
@@ -292,6 +320,11 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		doAddHeaderValue(HttpHeaders.CONTENT_LENGTH, contentLength, true);
 	}
 
+	/**
+	 * Get the length of the content body from the HTTP Content-Length header.
+	 * @return the value of the Content-Length header
+	 * @see #setContentLength(int)
+	 */
 	public int getContentLength() {
 		return (int) this.contentLength;
 	}
@@ -590,10 +623,15 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	@Override
 	public void sendRedirect(String url) throws IOException {
+		sendRedirect(url, HttpServletResponse.SC_MOVED_TEMPORARILY, true);
+	}
+
+	// @Override - on Servlet 6.1
+	public void sendRedirect(String url, int sc, boolean clearBuffer) throws IOException {
 		Assert.state(!isCommitted(), "Cannot send redirect - response is already committed");
 		Assert.notNull(url, "Redirect URL must not be null");
 		setHeader(HttpHeaders.LOCATION, url);
-		setStatus(HttpServletResponse.SC_MOVED_TEMPORARILY);
+		setStatus(sc);
 		setCommitted(true);
 	}
 
@@ -742,7 +780,7 @@ public class MockHttpServletResponse implements HttpServletResponse {
 
 	@Override
 	public void setStatus(int status) {
-		if (!this.isCommitted()) {
+		if (!isCommitted()) {
 			this.status = status;
 		}
 	}
@@ -752,6 +790,9 @@ public class MockHttpServletResponse implements HttpServletResponse {
 		return this.status;
 	}
 
+	/**
+	 * Return the error message used when calling {@link HttpServletResponse#sendError(int, String)}.
+	 */
 	@Nullable
 	public String getErrorMessage() {
 		return this.errorMessage;

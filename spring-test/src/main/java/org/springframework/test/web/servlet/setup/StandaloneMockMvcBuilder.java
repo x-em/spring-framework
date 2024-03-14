@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -514,8 +514,8 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 		protected void addInterceptors(InterceptorRegistry registry) {
 			for (MappedInterceptor interceptor : mappedInterceptors) {
 				InterceptorRegistration registration = registry.addInterceptor(interceptor.getInterceptor());
-				if (interceptor.getPathPatterns() != null) {
-					registration.addPathPatterns(interceptor.getPathPatterns());
+				if (interceptor.getIncludePathPatterns() != null) {
+					registration.addPathPatterns(interceptor.getIncludePathPatterns());
 				}
 			}
 		}
@@ -586,7 +586,7 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 		private final PlaceholderResolver resolver;
 
 		public StaticStringValueResolver(Map<String, String> values) {
-			this.helper = new PropertyPlaceholderHelper("${", "}", ":", false);
+			this.helper = new PropertyPlaceholderHelper("${", "}", ":", null, false);
 			this.resolver = values::get;
 		}
 

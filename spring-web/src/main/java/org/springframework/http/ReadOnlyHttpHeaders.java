@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.lang.Nullable;
@@ -30,6 +31,8 @@ import org.springframework.util.MultiValueMap;
 
 /**
  * {@code HttpHeaders} object that can only be read, not written to.
+ * <p>This caches the parsed representations of the "Accept" and "Content-Type" headers
+ * and will get out of sync with the backing map it is mutated at runtime.
  *
  * @author Brian Clozel
  * @author Sam Brannen
@@ -153,6 +156,11 @@ class ReadOnlyHttpHeaders extends HttpHeaders {
 				.collect(Collectors.collectingAndThen(
 						Collectors.toCollection(LinkedHashSet::new), // Retain original ordering of entries
 						Collections::unmodifiableSet));
+	}
+
+	@Override
+	public void forEach(BiConsumer<? super String, ? super List<String>> action) {
+		this.headers.forEach((k, vs) -> action.accept(k, Collections.unmodifiableList(vs)));
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@
 package org.springframework.http.client.reactive;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import io.netty5.util.AttributeKey;
 import reactor.core.publisher.Mono;
 import reactor.netty5.NettyOutbound;
 import reactor.netty5.http.client.HttpClient;
@@ -41,7 +43,14 @@ import org.springframework.util.Assert;
  */
 public class ReactorNetty2ClientHttpConnector implements ClientHttpConnector {
 
-	private final static Function<HttpClient, HttpClient> defaultInitializer = client -> client.compress(true);
+	/**
+	 * Channel attribute key under which {@code WebClient} request attributes are stored as a Map.
+	 * @since 6.2
+	 */
+	public static final AttributeKey<Map<String, Object>> ATTRIBUTES_KEY =
+			AttributeKey.valueOf(ReactorNetty2ClientHttpRequest.class.getName() + ".ATTRIBUTES");
+
+	private static final Function<HttpClient, HttpClient> defaultInitializer = client -> client.compress(true);
 
 
 	private final HttpClient httpClient;
@@ -106,9 +115,12 @@ public class ReactorNetty2ClientHttpConnector implements ClientHttpConnector {
 
 		AtomicReference<ReactorNetty2ClientHttpResponse> responseRef = new AtomicReference<>();
 
-		return this.httpClient
-				.request(io.netty5.handler.codec.http.HttpMethod.valueOf(method.name()))
-				.uri(uri.toString())
+		HttpClient.RequestSender requestSender = this.httpClient
+				.request(io.netty5.handler.codec.http.HttpMethod.valueOf(method.name()));
+
+		requestSender = (uri.isAbsolute() ? requestSender.uri(uri) : requestSender.uri(uri.toString()));
+
+		return requestSender
 				.send((request, outbound) -> requestCallback.apply(adaptRequest(method, uri, request, outbound)))
 				.responseConnection((response, connection) -> {
 					responseRef.set(new ReactorNetty2ClientHttpResponse(response, connection));

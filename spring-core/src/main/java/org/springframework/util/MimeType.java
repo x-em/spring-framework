@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,7 +102,6 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 
 	private final String subtype;
 
-	@SuppressWarnings("serial")
 	private final Map<String, String> parameters;
 
 	@Nullable
@@ -268,7 +267,8 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	 * @return whether the subtype is a wildcard
 	 */
 	public boolean isWildcardSubtype() {
-		return WILDCARD_TYPE.equals(getSubtype()) || getSubtype().startsWith("*+");
+		String subtype = getSubtype();
+		return (WILDCARD_TYPE.equals(subtype) || subtype.startsWith("*+"));
 	}
 
 	/**
@@ -409,7 +409,7 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 					return (thisSuffix.equals(other.getSubtype()) || thisSuffix.equals(otherSuffix));
 				}
 				else if (other.isWildcardSubtype() && otherSuffix != null) {
-					return (this.getSubtype().equals(otherSuffix) || otherSuffix.equals(thisSuffix));
+					return (getSubtype().equals(otherSuffix) || otherSuffix.equals(thisSuffix));
 				}
 			}
 		}
@@ -450,15 +450,10 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof MimeType otherType)) {
-			return false;
-		}
-		return (this.type.equalsIgnoreCase(otherType.type) &&
+		return (this == other || (other instanceof MimeType otherType &&
+				this.type.equalsIgnoreCase(otherType.type) &&
 				this.subtype.equalsIgnoreCase(otherType.subtype) &&
-				parametersAreEqual(otherType));
+				parametersAreEqual(otherType)));
 	}
 
 	/**
@@ -646,7 +641,7 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	}
 
 	/**
-	 * Indicates whether this {@code MimeType} is more less than the given type.
+	 * Indicates whether this {@code MimeType} is less specific than the given type.
 	 * <ol>
 	 * <li>if this mime type has a {@linkplain #isWildcardType() wildcard type},
 	 * and the other does not, then this method returns {@code true}.</li>
@@ -688,7 +683,7 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	/**
 	 * Parse the given String value into a {@code MimeType} object,
 	 * with this method name following the 'valueOf' naming convention
-	 * (as supported by {@link org.springframework.core.convert.ConversionService}.
+	 * (as supported by {@link org.springframework.core.convert.ConversionService}).
 	 * @see MimeTypeUtils#parseMimeType(String)
 	 */
 	public static MimeType valueOf(String value) {

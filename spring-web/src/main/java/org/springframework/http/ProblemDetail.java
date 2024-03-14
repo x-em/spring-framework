@@ -19,6 +19,7 @@ package org.springframework.http;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -38,7 +39,8 @@ import org.springframework.util.ObjectUtils;
  * additional properties. Subclasses can use the protected copy constructor to
  * re-create an existing {@code ProblemDetail} instance as the subclass, e.g.
  * from an {@code @ControllerAdvice} such as
- * {@link org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler}.
+ * {@link org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler} or
+ * {@link org.springframework.web.reactive.result.method.annotation.ResponseEntityExceptionHandler}.
  *
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
@@ -216,6 +218,19 @@ public class ProblemDetail {
 	}
 
 	/**
+	 * Setter for the {@link #getProperties() properties map}.
+	 * <p>By default, this is not set.
+	 * <p>When Jackson JSON is present on the classpath, any properties set here
+	 * are rendered as top level key-value pairs in the output JSON. Otherwise,
+	 * they are rendered as a {@code "properties"} sub-map.
+	 * @param properties the properties map
+	 * @since 6.0.14
+	 */
+	public void setProperties(@Nullable Map<String, Object> properties) {
+		this.properties = properties;
+	}
+
+	/**
 	 * Return a generic map of properties that are not known ahead of time,
 	 * possibly {@code null} if no properties have been added. To add a property,
 	 * use {@link #setProperty(String, Object)}.
@@ -232,29 +247,19 @@ public class ProblemDetail {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof ProblemDetail otherDetail)) {
-			return false;
-		}
-		return (this.type.equals(otherDetail.type) &&
-				ObjectUtils.nullSafeEquals(this.title, otherDetail.title) &&
-				this.status == otherDetail.status &&
-				ObjectUtils.nullSafeEquals(this.detail, otherDetail.detail) &&
-				ObjectUtils.nullSafeEquals(this.instance, otherDetail.instance) &&
-				ObjectUtils.nullSafeEquals(this.properties, otherDetail.properties));
+		return (this == other || (other instanceof ProblemDetail that &&
+				getType().equals(that.getType()) &&
+				ObjectUtils.nullSafeEquals(getTitle(), that.getTitle()) &&
+				this.status == that.status &&
+				ObjectUtils.nullSafeEquals(this.detail, that.detail) &&
+				ObjectUtils.nullSafeEquals(this.instance, that.instance) &&
+				ObjectUtils.nullSafeEquals(this.properties, that.properties)));
 	}
 
 	@Override
 	public int hashCode() {
-		int result = this.type.hashCode();
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.title);
-		result = 31 * result + this.status;
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.detail);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.instance);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.properties);
-		return result;
+		return Objects.hash(this.type, getTitle(), this.status, this.detail,
+				this.instance, this.properties);
 	}
 
 	@Override

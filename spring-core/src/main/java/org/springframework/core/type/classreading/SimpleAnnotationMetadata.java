@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ final class SimpleAnnotationMetadata implements AnnotationMetadata {
 
 	private final Set<MethodMetadata> declaredMethods;
 
-	private final MergedAnnotations annotations;
+	private final MergedAnnotations mergedAnnotations;
 
 	@Nullable
 	private Set<String> annotationTypes;
@@ -64,7 +64,7 @@ final class SimpleAnnotationMetadata implements AnnotationMetadata {
 
 	SimpleAnnotationMetadata(String className, int access, @Nullable String enclosingClassName,
 			@Nullable String superClassName, boolean independentInnerClass, Set<String> interfaceNames,
-			Set<String> memberClassNames, Set<MethodMetadata> declaredMethods, MergedAnnotations annotations) {
+			Set<String> memberClassNames, Set<MethodMetadata> declaredMethods, MergedAnnotations mergedAnnotations) {
 
 		this.className = className;
 		this.access = access;
@@ -74,7 +74,7 @@ final class SimpleAnnotationMetadata implements AnnotationMetadata {
 		this.interfaceNames = interfaceNames;
 		this.memberClassNames = memberClassNames;
 		this.declaredMethods = declaredMethods;
-		this.annotations = annotations;
+		this.mergedAnnotations = mergedAnnotations;
 	}
 
 	@Override
@@ -131,7 +131,7 @@ final class SimpleAnnotationMetadata implements AnnotationMetadata {
 
 	@Override
 	public MergedAnnotations getAnnotations() {
-		return this.annotations;
+		return this.mergedAnnotations;
 	}
 
 	@Override
@@ -163,9 +163,8 @@ final class SimpleAnnotationMetadata implements AnnotationMetadata {
 
 
 	@Override
-	public boolean equals(@Nullable Object obj) {
-		return ((this == obj) || ((obj instanceof SimpleAnnotationMetadata) &&
-				this.className.equals(((SimpleAnnotationMetadata) obj).className)));
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof SimpleAnnotationMetadata that && this.className.equals(that.className)));
 	}
 
 	@Override

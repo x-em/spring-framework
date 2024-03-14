@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,13 @@ import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Enumeration;
-import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
+import org.eclipse.jetty.client.ContentResponse;
 import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.api.ContentResponse;
-import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.api.Response;
-import org.eclipse.jetty.client.util.StringRequestContent;
+import org.eclipse.jetty.client.Request;
+import org.eclipse.jetty.client.Response;
+import org.eclipse.jetty.client.StringRequestContent;
 import org.eclipse.jetty.http.HttpFields;
 import org.eclipse.jetty.http.HttpMethod;
 
@@ -172,9 +171,7 @@ public class JettyXhrTransport extends AbstractXhrTransport implements Lifecycle
 
 	private static HttpHeaders toHttpHeaders(HttpFields httpFields) {
 		HttpHeaders responseHeaders = new HttpHeaders();
-		Iterator<String> names = httpFields.getFieldNamesCollection().iterator();
-		while (names.hasNext()) {
-			String name = names.next();
+		for (String name : httpFields.getFieldNamesCollection()) {
 			Enumeration<String> values = httpFields.getValues(name);
 			while (values.hasMoreElements()) {
 				String value = values.nextElement();
@@ -186,11 +183,11 @@ public class JettyXhrTransport extends AbstractXhrTransport implements Lifecycle
 
 
 	/**
-	 * Jetty client {@link org.eclipse.jetty.client.api.Response.Listener Response
+	 * Jetty client {@link org.eclipse.jetty.client.Response.Listener Response
 	 * Listener} that splits the body of the response into SockJS frames and
 	 * delegates them to the {@link XhrClientSockJsSession}.
 	 */
-	private class SockJsResponseListener extends Response.Listener.Adapter {
+	private class SockJsResponseListener implements Response.Listener {
 
 		private final URI transportUrl;
 
@@ -202,7 +199,7 @@ public class JettyXhrTransport extends AbstractXhrTransport implements Lifecycle
 
 		private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-		public SockJsResponseListener(URI url, HttpHeaders headers,	XhrClientSockJsSession sockJsSession,
+		public SockJsResponseListener(URI url, HttpHeaders headers, XhrClientSockJsSession sockJsSession,
 				CompletableFuture<WebSocketSession> connectFuture) {
 
 			this.transportUrl = url;

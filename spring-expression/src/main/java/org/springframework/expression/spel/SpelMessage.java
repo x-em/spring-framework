@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@ import java.text.MessageFormat;
 
 /**
  * Contains all the messages that can be produced by the Spring Expression Language.
- * Each message has a kind (info, warn, error) and a code number. Tests can be written to
+ *
+ * <p>Each message has a kind (info, warn, error) and a code number. Tests can be written to
  * expect particular code numbers rather than particular text, enabling the message text
  * to more easily be modified and the tests to run successfully in different locales.
  *
@@ -76,7 +77,7 @@ public enum SpelMessage {
 			"Cannot compare instances of {0} and {1}"),
 
 	INCORRECT_NUMBER_OF_ARGUMENTS_TO_FUNCTION(Kind.ERROR, 1014,
-			"Incorrect number of arguments for function, {0} supplied but function takes {1}"),
+			"Incorrect number of arguments for function ''{0}'': {1} supplied but function takes {2}"),
 
 	INVALID_TYPE_FOR_SELECTION(Kind.ERROR, 1015,
 			"Cannot perform selection on input data of type ''{0}''"),
@@ -100,7 +101,7 @@ public enum SpelMessage {
 			"A problem occurred whilst attempting to access the property ''{0}'': ''{1}''"),
 
 	FUNCTION_REFERENCE_CANNOT_BE_INVOKED(Kind.ERROR, 1022,
-			"The function ''{0}'' mapped to an object of type ''{1}'' which cannot be invoked"),
+			"The function ''{0}'' mapped to an object of type ''{1}'' cannot be invoked"),
 
 	EXCEPTION_DURING_FUNCTION_CALL(Kind.ERROR, 1023,
 			"A problem occurred whilst attempting to invoke the function ''{0}'': ''{1}''"),
@@ -129,7 +130,7 @@ public enum SpelMessage {
 	PROBLEM_LOCATING_METHOD(Kind.ERROR, 1031,
 			"Problem locating method {0} on type {1}"),
 
-	SETVALUE_NOT_SUPPORTED(	Kind.ERROR, 1032,
+	SETVALUE_NOT_SUPPORTED(Kind.ERROR, 1032,
 			"setValue(ExpressionState, Object) not supported for ''{0}''"),
 
 	MULTIPLE_POSSIBLE_METHODS(Kind.ERROR, 1033,
@@ -264,7 +265,31 @@ public enum SpelMessage {
 
 	/** @since 5.3.17 */
 	MAX_ARRAY_ELEMENTS_THRESHOLD_EXCEEDED(Kind.ERROR, 1075,
-			"Array declares too many elements, exceeding the threshold of ''{0}''");
+			"Array declares too many elements, exceeding the threshold of ''{0}''"),
+
+	/** @since 5.2.23 */
+	MAX_REPEATED_TEXT_SIZE_EXCEEDED(Kind.ERROR, 1076,
+			"Repeated text is too long, exceeding the threshold of ''{0}'' characters"),
+
+	/** @since 5.2.23 */
+	MAX_REGEX_LENGTH_EXCEEDED(Kind.ERROR, 1077,
+			"Regular expression is too long, exceeding the threshold of ''{0}'' characters"),
+
+	/** @since 5.2.24 */
+	MAX_CONCATENATED_STRING_LENGTH_EXCEEDED(Kind.ERROR, 1078,
+			"Concatenated string is too long, exceeding the threshold of ''{0}'' characters"),
+
+	/** @since 5.2.24 */
+	MAX_EXPRESSION_LENGTH_EXCEEDED(Kind.ERROR, 1079,
+			"SpEL expression is too long, exceeding the threshold of ''{0}'' characters"),
+
+	/** @since 5.2.24 */
+	VARIABLE_ASSIGNMENT_NOT_SUPPORTED(Kind.ERROR, 1080,
+			"Assignment to variable ''{0}'' is not supported"),
+
+	/** @since 6.0.13 */
+	NEGATIVE_REPEATED_TEXT_COUNT(Kind.ERROR, 1081,
+			"Repeat count ''{0}'' must not be negative");
 
 
 	private final Kind kind;

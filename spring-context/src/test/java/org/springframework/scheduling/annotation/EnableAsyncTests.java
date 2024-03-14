@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -65,10 +66,10 @@ import static org.mockito.Mockito.mock;
  * @author Stephane Nicoll
  * @since 3.1
  */
-public class EnableAsyncTests {
+class EnableAsyncTests {
 
 	@Test
-	public void proxyingOccurs() {
+	void proxyingOccurs() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncConfig.class);
 		ctx.refresh();
@@ -80,7 +81,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void proxyingOccursWithMockitoStub() {
+	void proxyingOccursWithMockitoStub() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncConfigWithMockito.class, AsyncBeanUser.class);
 		ctx.refresh();
@@ -93,27 +94,25 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void properExceptionForExistingProxyDependencyMismatch() {
+	void properExceptionForExistingProxyDependencyMismatch() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncConfig.class, AsyncBeanWithInterface.class, AsyncBeanUser.class);
-		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(
-				ctx::refresh)
-			.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
+		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(ctx::refresh)
+				.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
 		ctx.close();
 	}
 
 	@Test
-	public void properExceptionForResolvedProxyDependencyMismatch() {
+	void properExceptionForResolvedProxyDependencyMismatch() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncConfig.class, AsyncBeanUser.class, AsyncBeanWithInterface.class);
-		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(
-				ctx::refresh)
-			.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
+		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(ctx::refresh)
+				.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
 		ctx.close();
 	}
 
 	@Test
-	public void withAsyncBeanWithExecutorQualifiedByName() throws ExecutionException, InterruptedException {
+	void withAsyncBeanWithExecutorQualifiedByName() throws ExecutionException, InterruptedException {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncWithExecutorQualifiedByNameConfig.class);
 		ctx.refresh();
@@ -132,7 +131,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void withAsyncBeanWithExecutorQualifiedByExpressionOrPlaceholder() throws Exception {
+	void withAsyncBeanWithExecutorQualifiedByExpressionOrPlaceholder() throws Exception {
 		System.setProperty("myExecutor", "myExecutor1");
 		System.setProperty("my.app.myExecutor", "myExecutor2");
 
@@ -142,13 +141,18 @@ public class EnableAsyncTests {
 					context.getBean(AsyncBeanWithExecutorQualifiedByExpressionOrPlaceholder.class);
 
 			Future<Thread> workerThread1 = asyncBean.myWork1();
-			assertThat(workerThread1.get().getName()).startsWith("myExecutor1-");
+			assertThat(workerThread1.get(100, TimeUnit.MILLISECONDS).getName()).startsWith("myExecutor1-");
 
+			context.stop();
 			Future<Thread> workerThread2 = asyncBean.myWork2();
-			assertThat(workerThread2.get().getName()).startsWith("myExecutor2-");
+			assertThatExceptionOfType(TimeoutException.class).isThrownBy(
+					() -> workerThread2.get(100, TimeUnit.MILLISECONDS));
+
+			context.start();
+			assertThat(workerThread2.get(100, TimeUnit.MILLISECONDS).getName()).startsWith("myExecutor2-");
 
 			Future<Thread> workerThread3 = asyncBean.fallBackToDefaultExecutor();
-			assertThat(workerThread3.get().getName()).startsWith("SimpleAsyncTaskExecutor");
+			assertThat(workerThread3.get(100, TimeUnit.MILLISECONDS).getName()).startsWith("SimpleAsyncTaskExecutor");
 		}
 		finally {
 			System.clearProperty("myExecutor");
@@ -157,7 +161,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void asyncProcessorIsOrderedLowestPrecedenceByDefault() {
+	void asyncProcessorIsOrderedLowestPrecedenceByDefault() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AsyncConfig.class);
 		ctx.refresh();
@@ -169,7 +173,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void orderAttributeIsPropagated() {
+	void orderAttributeIsPropagated() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(OrderedAsyncConfig.class);
 		ctx.refresh();
@@ -181,7 +185,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void customAsyncAnnotationIsPropagated() {
+	void customAsyncAnnotationIsPropagated() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomAsyncAnnotationConfig.class, CustomAsyncBean.class);
 		ctx.refresh();
@@ -204,16 +208,15 @@ public class EnableAsyncTests {
 	 * Fails with classpath errors on trying to classload AnnotationAsyncExecutionAspect.
 	 */
 	@Test
-	public void aspectModeAspectJAttemptsToRegisterAsyncAspect() {
+	void aspectModeAspectJAttemptsToRegisterAsyncAspect() {
 		@SuppressWarnings("resource")
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(AspectJAsyncAnnotationConfig.class);
-		assertThatExceptionOfType(BeanDefinitionStoreException.class).isThrownBy(
-				ctx::refresh);
+		assertThatExceptionOfType(BeanDefinitionStoreException.class).isThrownBy(ctx::refresh);
 	}
 
 	@Test
-	public void customExecutorBean() {
+	void customExecutorBean() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomExecutorBean.class);
@@ -231,7 +234,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void customExecutorConfig() {
+	void customExecutorConfig() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomExecutorConfig.class);
@@ -249,7 +252,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void customExecutorConfigWithThrowsException() {
+	void customExecutorConfigWithThrowsException() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomExecutorConfig.class);
@@ -270,7 +273,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void customExecutorBeanConfig() {
+	void customExecutorBeanConfig() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomExecutorBeanConfig.class, ExecutorPostProcessor.class);
@@ -288,7 +291,7 @@ public class EnableAsyncTests {
 	}
 
 	@Test
-	public void customExecutorBeanConfigWithThrowsException() {
+	void customExecutorBeanConfigWithThrowsException() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(CustomExecutorBeanConfig.class, ExecutorPostProcessor.class);
@@ -520,6 +523,7 @@ public class EnableAsyncTests {
 			return new ThreadPoolTaskExecutor();
 		}
 	}
+
 
 	@Configuration
 	@EnableAsync

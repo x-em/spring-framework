@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -154,7 +155,7 @@ public class LinkedCaseInsensitiveMap<V> implements Map<String, V>, Serializable
 
 	@Override
 	public boolean containsKey(Object key) {
-		return (key instanceof String && this.caseInsensitiveKeys.containsKey(convertKey((String) key)));
+		return (key instanceof String string && this.caseInsensitiveKeys.containsKey(convertKey(string)));
 	}
 
 	@Override
@@ -284,6 +285,11 @@ public class LinkedCaseInsensitiveMap<V> implements Map<String, V>, Serializable
 			this.entrySet = entrySet;
 		}
 		return entrySet;
+	}
+
+	@Override
+	public void forEach(BiConsumer<? super String, ? super V> action) {
+		this.targetMap.forEach(action);
 	}
 
 	@Override

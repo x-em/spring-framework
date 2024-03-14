@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package org.springframework.aop.scope;
 
-import java.lang.reflect.Executable;
 import java.util.function.Predicate;
 
 import javax.lang.model.element.Modifier;
@@ -55,8 +54,8 @@ class ScopedProxyBeanRegistrationAotProcessor implements BeanRegistrationAotProc
 
 	@Override
 	public BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
-		Class<?> beanType = registeredBean.getBeanType().toClass();
-		if (beanType.equals(ScopedProxyFactoryBean.class)) {
+		Class<?> beanClass = registeredBean.getBeanClass();
+		if (beanClass.equals(ScopedProxyFactoryBean.class)) {
 			String targetBeanName = getTargetBeanName(registeredBean.getMergedBeanDefinition());
 			BeanDefinition targetBeanDefinition =
 					getTargetBeanDefinition(registeredBean.getBeanFactory(), targetBeanName);
@@ -109,7 +108,7 @@ class ScopedProxyBeanRegistrationAotProcessor implements BeanRegistrationAotProc
 		}
 
 		@Override
-		public ClassName getTarget(RegisteredBean registeredBean, Executable constructorOrFactoryMethod) {
+		public ClassName getTarget(RegisteredBean registeredBean) {
 			return ClassName.get(this.targetBeanDefinition.getResolvableType().toClass());
 		}
 
@@ -139,9 +138,7 @@ class ScopedProxyBeanRegistrationAotProcessor implements BeanRegistrationAotProc
 
 		@Override
 		public CodeBlock generateInstanceSupplierCode(GenerationContext generationContext,
-				BeanRegistrationCode beanRegistrationCode,
-				Executable constructorOrFactoryMethod,
-				boolean allowDirectSupplierShortcut) {
+				BeanRegistrationCode beanRegistrationCode, boolean allowDirectSupplierShortcut) {
 
 			GeneratedMethod generatedMethod = beanRegistrationCode.getMethods()
 					.add("getScopedProxyInstance", method -> {

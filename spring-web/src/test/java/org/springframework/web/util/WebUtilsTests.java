@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Rossen Stoyanchev
  * @author Sebastien Deleuze
  */
-public class WebUtilsTests {
+class WebUtilsTests {
 
 	@Test
 	void findParameterValue() {
@@ -67,7 +67,7 @@ public class WebUtilsTests {
 
 		variables = WebUtils.parseMatrixVariables("year");
 		assertThat(variables).hasSize(1);
-		assertThat(variables.getFirst("year")).isEqualTo("");
+		assertThat(variables.getFirst("year")).isEmpty();
 
 		variables = WebUtils.parseMatrixVariables("year=2012");
 		assertThat(variables).hasSize(1);

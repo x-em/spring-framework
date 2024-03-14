@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.springframework.http.ContentDisposition.parse;
 
 /**
- * Unit tests for {@link ContentDisposition}.
+ * Tests for {@link ContentDisposition}.
  *
  * @author Sebastien Deleuze
  * @author Rossen Stoyanchev
@@ -167,6 +167,14 @@ class ContentDispositionTests {
 		assertThat(cd.getName()).isEqualTo("foo");
 		assertThat(cd.getFilename()).isEqualTo("bar\\");
 		assertThat(cd.toString()).isEqualTo("form-data; name=\"foo\"; filename=\"bar\\\\\"");
+	}
+
+	@Test
+	void parseWindowsPath() {
+		ContentDisposition cd = ContentDisposition.parse("form-data; name=\"foo\"; filename=\"D:\\foo\\bar.txt\"");
+		assertThat(cd.getName()).isEqualTo("foo");
+		assertThat(cd.getFilename()).isEqualTo("D:\\foo\\bar.txt");
+		assertThat(cd.toString()).isEqualTo("form-data; name=\"foo\"; filename=\"D:\\\\foo\\\\bar.txt\"");
 	}
 
 
@@ -315,6 +323,28 @@ class ContentDispositionTests {
 		ContentDisposition parsed = ContentDisposition.parse(cd.toString());
 		assertThat(parsed).isEqualTo(cd);
 		assertThat(parsed.toString()).isEqualTo(cd.toString());
+	}
+
+	@Test // gh-30252
+	void parseFormattedWithQuestionMark() {
+		String filename = "filename with ?问号.txt";
+		ContentDisposition cd = ContentDisposition.attachment()
+				.filename(filename, StandardCharsets.UTF_8)
+				.build();
+		String result = cd.toString();
+		assertThat(result).isEqualTo("attachment; " +
+						"filename=\"=?UTF-8?Q?filename_with_=3F=E9=97=AE=E5=8F=B7.txt?=\"; " +
+						"filename*=UTF-8''filename%20with%20%3F%E9%97%AE%E5%8F%B7.txt");
+
+		String[] parts = result.split("; ");
+
+		String quotedPrintableFilename = parts[0] + "; " + parts[1];
+		assertThat(ContentDisposition.parse(quotedPrintableFilename).getFilename())
+				.isEqualTo(filename);
+
+		String rfc5987Filename = parts[0] + "; " + parts[2];
+		assertThat(ContentDisposition.parse(rfc5987Filename).getFilename())
+				.isEqualTo(filename);
 	}
 
 }

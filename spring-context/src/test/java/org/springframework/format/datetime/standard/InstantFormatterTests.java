@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.format.datetime.standard;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Random;
 import java.util.stream.Stream;
 
@@ -37,7 +38,7 @@ import static java.time.ZoneId.systemDefault;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link InstantFormatter}.
+ * Tests for {@link InstantFormatter}.
  *
  * @author Andrei Nevedomskii
  * @author Sam Brannen
@@ -77,6 +78,14 @@ class InstantFormatterTests {
 		String actual = instantFormatter.print(input, null);
 
 		assertThat(actual).isEqualTo(expected);
+	}
+
+	@ParameterizedTest
+	@ArgumentsSource(RandomEpochMillisProvider.class)
+	void should_parse_into_an_Instant_from_epoch_milli(Instant input) throws ParseException {
+		Instant actual = instantFormatter.parse(Long.toString(input.toEpochMilli()), null);
+
+		assertThat(actual).isEqualTo(input);
 	}
 
 	private static class RandomInstantProvider implements ArgumentsProvider {
@@ -119,6 +128,20 @@ class InstantFormatterTests {
 		Stream<?> provideArguments() {
 			return randomInstantStream(min, max)
 					.map(DateTimeFormatter.RFC_1123_DATE_TIME.withZone(systemDefault())::format);
+		}
+	}
+	private static final class RandomEpochMillisProvider implements ArgumentsProvider {
+
+		private static final long DATA_SET_SIZE = 10;
+
+		private static final Random random = new Random();
+
+		@Override
+		public Stream<Arguments> provideArguments(ExtensionContext context) {
+			return random.longs(DATA_SET_SIZE, Long.MIN_VALUE, Long.MAX_VALUE)
+					.mapToObj(Instant::ofEpochMilli)
+					.map(instant -> instant.truncatedTo(ChronoUnit.MILLIS))
+					.map(Arguments::of);
 		}
 	}
 

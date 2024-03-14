@@ -104,12 +104,17 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 
 	@Override
 	public boolean canRead(ResolvableType elementType, @Nullable MediaType mediaType) {
-		boolean multiValueUnresolved =
-				elementType.hasUnresolvableGenerics() &&
-						MultiValueMap.class.isAssignableFrom(elementType.toClass());
+		if (!supportsMediaType(mediaType)) {
+			return false;
+		}
+		if (MultiValueMap.class.isAssignableFrom(elementType.toClass()) && elementType.hasUnresolvableGenerics()) {
+			return true;
+		}
+		return MULTIVALUE_STRINGS_TYPE.isAssignableFrom(elementType);
+	}
 
-		return ((MULTIVALUE_STRINGS_TYPE.isAssignableFrom(elementType) || multiValueUnresolved) &&
-				(mediaType == null || MediaType.APPLICATION_FORM_URLENCODED.isCompatibleWith(mediaType)));
+	private static boolean supportsMediaType(@Nullable MediaType mediaType) {
+		return (mediaType == null || MediaType.APPLICATION_FORM_URLENCODED.isCompatibleWith(mediaType));
 	}
 
 	@Override
@@ -161,7 +166,7 @@ public class FormHttpMessageReader extends LoggingCodecSupport
 				result.add(URLDecoder.decode(pair, charset), null);
 			}
 			else {
-				String name = URLDecoder.decode(pair.substring(0, idx),  charset);
+				String name = URLDecoder.decode(pair.substring(0, idx), charset);
 				String value = URLDecoder.decode(pair.substring(idx + 1), charset);
 				result.add(name, value);
 			}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
- * Unit tests for {@link CookieLocaleResolver}.
+ * Tests for {@link CookieLocaleResolver}.
  *
  * @author Alef Arendsen
  * @author Juergen Hoeller
@@ -357,7 +357,7 @@ class CookieLocaleResolverTests {
 		assertThat(cookies).hasSize(1);
 		Cookie localeCookie = cookies[0];
 		assertThat(localeCookie.getName()).isEqualTo(CookieLocaleResolver.DEFAULT_COOKIE_NAME);
-		assertThat(localeCookie.getValue()).isEqualTo("");
+		assertThat(localeCookie.getValue()).isEmpty();
 	}
 
 	@Test
@@ -376,7 +376,7 @@ class CookieLocaleResolverTests {
 		assertThat(cookies).hasSize(1);
 		Cookie localeCookie = cookies[0];
 		assertThat(localeCookie.getName()).isEqualTo(CookieLocaleResolver.DEFAULT_COOKIE_NAME);
-		assertThat(localeCookie.getValue()).isEqualTo("");
+		assertThat(localeCookie.getValue()).isEmpty();
 	}
 
 	@Test
@@ -394,7 +394,7 @@ class CookieLocaleResolverTests {
 		assertThat(cookies).hasSize(1);
 		Cookie localeCookie = cookies[0];
 		assertThat(localeCookie.getName()).isEqualTo(CookieLocaleResolver.DEFAULT_COOKIE_NAME);
-		assertThat(localeCookie.getValue()).isEqualTo("");
+		assertThat(localeCookie.getValue()).isEmpty();
 	}
 
 	@Test
@@ -415,7 +415,7 @@ class CookieLocaleResolverTests {
 		assertThat(cookies).hasSize(1);
 		Cookie localeCookie = cookies[0];
 		assertThat(localeCookie.getName()).isEqualTo(CookieLocaleResolver.DEFAULT_COOKIE_NAME);
-		assertThat(localeCookie.getValue()).isEqualTo("");
+		assertThat(localeCookie.getValue()).isEmpty();
 	}
 
 	@Test

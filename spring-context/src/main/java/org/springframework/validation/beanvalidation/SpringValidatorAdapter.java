@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,12 +32,14 @@ import jakarta.validation.executable.ExecutableValidator;
 import jakarta.validation.metadata.BeanDescriptor;
 import jakarta.validation.metadata.ConstraintDescriptor;
 
+import org.springframework.beans.InvalidPropertyException;
 import org.springframework.beans.NotReadablePropertyException;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.FieldError;
@@ -113,7 +115,7 @@ public class SpringValidatorAdapter implements SmartValidator, jakarta.validatio
 		}
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Override
 	public void validateValue(
 			Class<?> targetType, String fieldName, @Nullable Object value, Errors errors, Object... validationHints) {
@@ -201,7 +203,7 @@ public class SpringValidatorAdapter implements SmartValidator, jakarta.validatio
 		StringBuilder sb = new StringBuilder();
 		boolean first = true;
 		for (Path.Node node : path) {
-			if (node.isInIterable()) {
+			if (node.isInIterable() && !first) {
 				sb.append('[');
 				Object index = node.getIndex();
 				if (index == null) {
@@ -286,7 +288,9 @@ public class SpringValidatorAdapter implements SmartValidator, jakarta.validatio
 	 * @see #getArgumentsForConstraint
 	 */
 	protected MessageSourceResolvable getResolvableField(String objectName, String field) {
-		String[] codes = new String[] {objectName + Errors.NESTED_PATH_SEPARATOR + field, field};
+		String[] codes = (StringUtils.hasText(field) ?
+				new String[] {objectName + Errors.NESTED_PATH_SEPARATOR + field, field} :
+				new String[] {objectName});
 		return new DefaultMessageSourceResolvable(codes, field);
 	}
 
@@ -309,7 +313,13 @@ public class SpringValidatorAdapter implements SmartValidator, jakarta.validatio
 				(invalidValue == violation.getLeafBean() || field.contains("[") || field.contains("."))) {
 			// Possibly a bean constraint with property path: retrieve the actual property value.
 			// However, explicitly avoid this for "address[]" style paths that we can't handle.
-			invalidValue = bindingResult.getRawFieldValue(field);
+			try {
+				invalidValue = bindingResult.getRawFieldValue(field);
+			}
+			catch (InvalidPropertyException ex) {
+				// Bean validation uses ValueExtractor's to unwrap container values
+				// in which cases we can't access the raw value.
+			}
 		}
 		return invalidValue;
 	}

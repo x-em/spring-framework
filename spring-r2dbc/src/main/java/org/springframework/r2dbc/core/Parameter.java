@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
  */
 
 package org.springframework.r2dbc.core;
-
-import java.util.Objects;
 
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -111,20 +109,15 @@ public final class Parameter {
 
 
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (!(obj instanceof Parameter other)) {
-			return false;
-		}
-		return (ObjectUtils.nullSafeEquals(this.value, other.value) &&
-				ObjectUtils.nullSafeEquals(this.type, other.type));
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof Parameter that &&
+				ObjectUtils.nullSafeEquals(this.value, that.value) &&
+				ObjectUtils.nullSafeEquals(this.type, that.type)));
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.value, this.type);
+		return ObjectUtils.nullSafeHash(this.value, this.type);
 	}
 
 	@Override

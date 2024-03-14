@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,18 @@
 package org.springframework.aot.hint;
 
 import java.lang.reflect.Type;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
@@ -37,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Sebastien Deleuze
  */
-public class BindingReflectionHintsRegistrarTests {
+class BindingReflectionHintsRegistrarTests {
 
 	private final BindingReflectionHintsRegistrar bindingRegistrar = new BindingReflectionHintsRegistrar();
 
@@ -49,6 +53,28 @@ public class BindingReflectionHintsRegistrarTests {
 		assertThat(this.hints.reflection().typeHints()).singleElement()
 				.satisfies(typeHint -> {
 					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleEmptyClass.class));
+					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
+							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+					assertThat(typeHint.constructors()).isEmpty();
+					assertThat(typeHint.fields()).isEmpty();
+					assertThat(typeHint.methods()).isEmpty();
+				});
+	}
+
+	@Test
+	void registerTypeForSerializationWithExtendingClass() {
+		bindingRegistrar.registerReflectionHints(this.hints.reflection(), SampleExtendingClass.class);
+		assertThat(this.hints.reflection().typeHints()).satisfiesExactlyInAnyOrder(
+				typeHint -> {
+					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleEmptyClass.class));
+					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
+							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+					assertThat(typeHint.constructors()).isEmpty();
+					assertThat(typeHint.fields()).isEmpty();
+					assertThat(typeHint.methods()).isEmpty();
+				},
+				typeHint -> {
+					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleExtendingClass.class));
 					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
 							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
 					assertThat(typeHint.constructors()).isEmpty();
@@ -201,8 +227,8 @@ public class BindingReflectionHintsRegistrarTests {
 	@Test
 	void registerTypeForSerializationWithEnum() {
 		bindingRegistrar.registerReflectionHints(this.hints.reflection(), SampleEnum.class);
-		assertThat(this.hints.reflection().typeHints()).singleElement()
-				.satisfies(typeHint -> assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleEnum.class)));
+		assertThat(RuntimeHintsPredicates.reflection().onType(SampleEnum.class).withMemberCategories(
+				MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS, MemberCategory.INVOKE_PUBLIC_METHODS)).accepts(this.hints);
 	}
 
 	@Test
@@ -261,12 +287,25 @@ public class BindingReflectionHintsRegistrarTests {
 		bindingRegistrar.registerReflectionHints(this.hints.reflection(), SampleRecordWithJacksonCustomStrategy.class);
 		assertThat(RuntimeHintsPredicates.reflection().onType(PropertyNamingStrategies.UpperSnakeCaseStrategy.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
 				.accepts(this.hints);
-		assertThat(RuntimeHintsPredicates.reflection().onType(SampleRecordWithJacksonCustomStrategy.Builder.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+		assertThat(RuntimeHintsPredicates.reflection().onType(SampleRecordWithJacksonCustomStrategy.Builder.class)
+				.withMemberCategories(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.INVOKE_DECLARED_METHODS))
+				.accepts(this.hints);
+	}
+
+	@Test
+	void registerTypeForAnnotationOnMethodAndField() {
+		bindingRegistrar.registerReflectionHints(this.hints.reflection(), SampleClassWithJsonProperty.class);
+		assertThat(RuntimeHintsPredicates.reflection().onType(CustomDeserializer1.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+				.accepts(this.hints);
+		assertThat(RuntimeHintsPredicates.reflection().onType(CustomDeserializer2.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
 				.accepts(this.hints);
 	}
 
 
 	static class SampleEmptyClass {
+	}
+
+	static class SampleExtendingClass extends SampleEmptyClass {
 	}
 
 	static class SampleClassWithNoProperty {
@@ -359,9 +398,11 @@ public class BindingReflectionHintsRegistrarTests {
 	static class SampleClassWithJsonProperty {
 
 		@JsonProperty
+		@JsonDeserialize(using = CustomDeserializer1.class)
 		private String privateField = "";
 
 		@JsonProperty
+		@JsonDeserialize(using = CustomDeserializer2.class)
 		String packagePrivateMethod() {
 			return "";
 		}
@@ -381,7 +422,7 @@ public class BindingReflectionHintsRegistrarTests {
 				return new Builder();
 			}
 
-			public Builder id(String name) {
+			public Builder name(String name) {
 				this.name = name;
 				return this;
 			}
@@ -391,6 +432,32 @@ public class BindingReflectionHintsRegistrarTests {
 			}
 		}
 
+	}
+
+	@SuppressWarnings("serial")
+	static class CustomDeserializer1 extends StdDeserializer<LocalDate> {
+
+		public CustomDeserializer1() {
+			super(CustomDeserializer1.class);
+		}
+
+		@Override
+		public LocalDate deserialize(JsonParser p, DeserializationContext ctxt) {
+			return null;
+		}
+	}
+
+	@SuppressWarnings("serial")
+	static class CustomDeserializer2 extends StdDeserializer<LocalDate> {
+
+		public CustomDeserializer2() {
+			super(CustomDeserializer2.class);
+		}
+
+		@Override
+		public LocalDate deserialize(JsonParser p, DeserializationContext ctxt) {
+			return null;
+		}
 	}
 
 }

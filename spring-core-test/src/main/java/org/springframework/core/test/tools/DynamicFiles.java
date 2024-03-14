@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,9 +37,7 @@ import org.springframework.lang.Nullable;
  */
 final class DynamicFiles<F extends DynamicFile> implements Iterable<F> {
 
-
 	private static final DynamicFiles<?> NONE = new DynamicFiles<>(Collections.emptyMap());
-
 
 	private final Map<String, F> files;
 
@@ -102,15 +100,10 @@ final class DynamicFiles<F extends DynamicFile> implements Iterable<F> {
 		return files.iterator().next();
 	}
 
+
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (obj == null || getClass() != obj.getClass()) {
-			return false;
-		}
-		return this.files.equals(((DynamicFiles<?>) obj).files);
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof DynamicFiles<?> that && this.files.equals(that.files)));
 	}
 
 	@Override

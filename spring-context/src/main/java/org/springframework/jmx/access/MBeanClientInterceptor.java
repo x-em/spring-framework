@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -348,7 +348,7 @@ public class MBeanClientInterceptor
 
 
 	/**
-	 * Route the invocation to the configured managed resource..
+	 * Route the invocation to the configured managed resource.
 	 * @param invocation the {@code MethodInvocation} to re-route
 	 * @return the value returned as a result of the re-routed invocation
 	 * @throws Throwable an invocation error propagated to the user
@@ -441,11 +441,11 @@ public class MBeanClientInterceptor
 		catch (RuntimeOperationsException ex) {
 			// This one is only thrown by the JMX 1.2 RI, not by the JDK 1.5 JMX code.
 			RuntimeException rex = ex.getTargetException();
-			if (rex instanceof RuntimeMBeanException) {
-				throw ((RuntimeMBeanException) rex).getTargetException();
+			if (rex instanceof RuntimeMBeanException runtimeMBeanException) {
+				throw runtimeMBeanException.getTargetException();
 			}
-			else if (rex instanceof RuntimeErrorException) {
-				throw ((RuntimeErrorException) rex).getTargetError();
+			else if (rex instanceof RuntimeErrorException runtimeErrorException) {
+				throw runtimeErrorException.getTargetError();
 			}
 			else {
 				throw rex;
@@ -605,8 +605,8 @@ public class MBeanClientInterceptor
 	}
 
 	private Object convertDataArrayToTargetArray(Object[] array, Class<?> targetClass) throws NoSuchMethodException {
-		Class<?> targetType = targetClass.getComponentType();
-		Method fromMethod = targetType.getMethod("from", array.getClass().getComponentType());
+		Class<?> targetType = targetClass.componentType();
+		Method fromMethod = targetType.getMethod("from", array.getClass().componentType());
 		Object resultArray = Array.newInstance(targetType, array.length);
 		for (int i = 0; i < array.length; i++) {
 			Array.set(resultArray, i, ReflectionUtils.invokeMethod(fromMethod, null, array[i]));
@@ -617,7 +617,7 @@ public class MBeanClientInterceptor
 	private Collection<?> convertDataArrayToTargetCollection(Object[] array, Class<?> collectionType, Class<?> elementType)
 			throws NoSuchMethodException {
 
-		Method fromMethod = elementType.getMethod("from", array.getClass().getComponentType());
+		Method fromMethod = elementType.getMethod("from", array.getClass().componentType());
 		Collection<Object> resultColl = CollectionFactory.createCollection(collectionType, Array.getLength(array));
 		for (Object element : array) {
 			resultColl.add(ReflectionUtils.invokeMethod(fromMethod, null, element));
@@ -655,13 +655,9 @@ public class MBeanClientInterceptor
 
 		@Override
 		public boolean equals(@Nullable Object other) {
-			if (this == other) {
-				return true;
-			}
-			if (!(other instanceof MethodCacheKey otherKey)) {
-				return false;
-			}
-			return (this.name.equals(otherKey.name) && Arrays.equals(this.parameterTypes, otherKey.parameterTypes));
+			return (this == other || (other instanceof MethodCacheKey that &&
+					this.name.equals(that.name) &&
+					Arrays.equals(this.parameterTypes, that.parameterTypes)));
 		}
 
 		@Override

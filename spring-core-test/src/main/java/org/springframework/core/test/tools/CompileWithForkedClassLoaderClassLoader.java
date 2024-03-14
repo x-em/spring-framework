@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ final class CompileWithForkedClassLoaderClassLoader extends ClassLoader {
 		this.testClassLoader = testClassLoader;
 	}
 
+
 	// Invoked reflectively by DynamicClassLoader
 	@SuppressWarnings("unused")
 	void setClassResourceLookup(Function<String, byte[]> classResourceLookup) {
@@ -69,7 +70,7 @@ final class CompileWithForkedClassLoaderClassLoader extends ClassLoader {
 	@Override
 	protected Class<?> findClass(String name) throws ClassNotFoundException {
 		byte[] bytes = findClassBytes(name);
-		return (bytes != null) ? defineClass(name, bytes, 0, bytes.length, null) : super.findClass(name);
+		return (bytes != null ? defineClass(name, bytes, 0, bytes.length, null) : super.findClass(name));
 	}
 
 	@Nullable

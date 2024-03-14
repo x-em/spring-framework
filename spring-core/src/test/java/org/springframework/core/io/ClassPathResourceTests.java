@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.jupiter.api.io.CleanupMode.NEVER;
 
 /**
- * Unit tests for {@link ClassPathResource}.
+ * Tests for {@link ClassPathResource}.
  *
  * <p>These also originally served as regression tests for the bugs described in
  * SPR-6888 and SPR-9413.
@@ -120,8 +120,8 @@ class ClassPathResourceTests {
 			Resource relative = resource.createRelative("subdir");
 			assertThat(relative).isEqualTo(new ClassPathResource("dir/subdir"));
 		}
-
 	}
+
 
 	@Nested
 	class GetInputStream {
@@ -151,8 +151,8 @@ class ClassPathResourceTests {
 				.isThrownBy(resource::getInputStream)
 				.withMessageContaining(ABSOLUTE_PATH_TO_NONEXISTENT_RESOURCE);
 		}
-
 	}
+
 
 	@Nested
 	class GetDescription {
@@ -190,8 +190,8 @@ class ClassPathResourceTests {
 		private static void assertDescription(ClassPathResource resource) {
 			assertThat(resource.getDescription()).isEqualTo("class path resource [%s]", ABSOLUTE_PATH_TO_NONEXISTENT_RESOURCE);
 		}
-
 	}
+
 
 	@Nested
 	class GetPath {
@@ -209,12 +209,12 @@ class ClassPathResourceTests {
 			assertThat(((ClassPathResource) new ClassPathResource("", getClass()).createRelative("/test.html")).getPath()).isEqualTo("test.html");
 			assertThat(((ClassPathResource) new ClassPathResource("", getClass()).createRelative("test.html")).getPath()).isEqualTo(PACKAGE_PATH + "/test.html");
 		}
-
 	}
+
 
 	@Test
 	void directoryNotReadable() throws Exception {
-		Resource fileDir = new ClassPathResource("org/springframework/core");
+		Resource fileDir = new ClassPathResource("example/type");
 		assertThat(fileDir.getURL()).asString().startsWith("file:");
 		assertThat(fileDir.exists()).isTrue();
 		assertThat(fileDir.isReadable()).isFalse();
@@ -231,7 +231,7 @@ class ClassPathResourceTests {
 	void emptyFileReadable(@TempDir(cleanup = NEVER) File tempDir) throws IOException {
 		File file = new File(tempDir, "empty.txt");
 		assertThat(file.createNewFile()).isTrue();
-		assertThat(file.isFile());
+		assertThat(file.isFile()).isTrue();
 
 		try (URLClassLoader fileClassLoader = new URLClassLoader(new URL[]{tempDir.toURI().toURL()})) {
 			Resource emptyFile = new ClassPathResource("empty.txt", fileClassLoader);
@@ -246,7 +246,7 @@ class ClassPathResourceTests {
 			zipOut.putNextEntry(new ZipEntry("empty2.txt"));
 			zipOut.closeEntry();
 		}
-		assertThat(jarFile.isFile());
+		assertThat(jarFile.isFile()).isTrue();
 
 		try (URLClassLoader jarClassLoader = new URLClassLoader(new URL[]{jarFile.toURI().toURL()})) {
 			Resource emptyJarEntry = new ClassPathResource("empty2.txt", jarClassLoader);

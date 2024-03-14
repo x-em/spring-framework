@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,20 @@ import java.nio.charset.Charset;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import jakarta.servlet.ServletException;
@@ -47,6 +51,7 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.Part;
 
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRange;
@@ -55,13 +60,19 @@ import org.springframework.http.converter.GenericHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.server.RequestPath;
 import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.ObjectUtils;
+import org.springframework.validation.BindException;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.ServletRequestDataBinder;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -73,6 +84,7 @@ import org.springframework.web.util.UriBuilder;
  *
  * @author Arjen Poutsma
  * @author Sam Brannen
+ * @author Patrick Strawderman
  * @since 5.2
  */
 class DefaultServerRequest implements ServerRequest {
@@ -216,6 +228,35 @@ class DefaultServerRequest implements ServerRequest {
 		}
 		MimeTypeUtils.sortBySpecificity(result);
 		return result;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T> T bind(Class<T> bindType, Consumer<WebDataBinder> dataBinderCustomizer) throws BindException {
+		Assert.notNull(bindType, "BindType must not be null");
+		Assert.notNull(dataBinderCustomizer, "DataBinderCustomizer must not be null");
+
+		ServletRequestDataBinder dataBinder = new ServletRequestDataBinder(null);
+		dataBinder.setTargetType(ResolvableType.forClass(bindType));
+		dataBinderCustomizer.accept(dataBinder);
+
+		HttpServletRequest servletRequest = servletRequest();
+		dataBinder.construct(servletRequest);
+		dataBinder.bind(servletRequest);
+
+		BindingResult bindingResult = dataBinder.getBindingResult();
+		if (bindingResult.hasErrors()) {
+			throw new BindException(bindingResult);
+		}
+		else {
+			T result = (T) bindingResult.getTarget();
+			if (result != null) {
+				return result;
+			}
+			else {
+				throw new IllegalStateException("Binding result has neither target nor errors");
+			}
+		}
 	}
 
 	@Override
@@ -439,12 +480,72 @@ class DefaultServerRequest implements ServerRequest {
 
 		@Override
 		public Set<Entry<String, Object>> entrySet() {
-			return Collections.list(this.servletRequest.getAttributeNames()).stream()
-					.map(name -> {
-						Object value = this.servletRequest.getAttribute(name);
-						return new SimpleImmutableEntry<>(name, value);
-					})
-					.collect(Collectors.toSet());
+			return new AbstractSet<>() {
+				@Override
+				public Iterator<Entry<String, Object>> iterator() {
+					return new Iterator<>() {
+
+						private final Iterator<String> attributes = ServletAttributesMap.this.servletRequest.getAttributeNames().asIterator();
+
+						@Override
+						public boolean hasNext() {
+							return this.attributes.hasNext();
+						}
+
+						@Override
+						public Entry<String, Object> next() {
+							String attribute = this.attributes.next();
+							Object value = ServletAttributesMap.this.servletRequest.getAttribute(attribute);
+							return new SimpleImmutableEntry<>(attribute, value);
+						}
+					};
+				}
+
+				@Override
+				public boolean isEmpty() {
+					return ServletAttributesMap.this.isEmpty();
+				}
+
+				@Override
+				public int size() {
+					return ServletAttributesMap.this.size();
+				}
+
+				@Override
+				public boolean contains(Object o) {
+					if (!(o instanceof Map.Entry<?,?> entry)) {
+						return false;
+					}
+					String attribute = (String) entry.getKey();
+					Object value = ServletAttributesMap.this.servletRequest.getAttribute(attribute);
+					return value != null && value.equals(entry.getValue());
+				}
+
+				@Override
+				public boolean addAll(@NonNull Collection<? extends Entry<String, Object>> c) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean remove(Object o) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean removeAll(Collection<?> c) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean retainAll(@NonNull Collection<?> c) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public void clear() {
+					throw new UnsupportedOperationException();
+				}
+			};
 		}
 
 		@Override
@@ -466,6 +567,22 @@ class DefaultServerRequest implements ServerRequest {
 			Object value = this.servletRequest.getAttribute(name);
 			this.servletRequest.removeAttribute(name);
 			return value;
+		}
+
+		@Override
+		public int size() {
+			Enumeration<String> attributes = this.servletRequest.getAttributeNames();
+			int size = 0;
+			while (attributes.hasMoreElements()) {
+				size++;
+				attributes.nextElement();
+			}
+			return size;
+		}
+
+		@Override
+		public boolean isEmpty() {
+			return !this.servletRequest.getAttributeNames().hasMoreElements();
 		}
 	}
 
@@ -559,6 +676,11 @@ class DefaultServerRequest implements ServerRequest {
 
 		@Override
 		public void sendRedirect(String location) throws IOException {
+			throw new UnsupportedOperationException();
+		}
+
+		// @Override - on Servlet 6.1
+		public void sendRedirect(String location, int sc, boolean clearBuffer) throws IOException {
 			throw new UnsupportedOperationException();
 		}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -463,7 +463,7 @@ public abstract class ReflectionUtils {
 		if (result == null) {
 			try {
 				Method[] declaredMethods = clazz.getDeclaredMethods();
-				List<Method> defaultMethods = findConcreteMethodsOnInterfaces(clazz);
+				List<Method> defaultMethods = findDefaultMethodsOnInterfaces(clazz);
 				if (defaultMethods != null) {
 					result = new Method[declaredMethods.length + defaultMethods.size()];
 					System.arraycopy(declaredMethods, 0, result, 0, declaredMethods.length);
@@ -487,15 +487,15 @@ public abstract class ReflectionUtils {
 	}
 
 	@Nullable
-	private static List<Method> findConcreteMethodsOnInterfaces(Class<?> clazz) {
+	private static List<Method> findDefaultMethodsOnInterfaces(Class<?> clazz) {
 		List<Method> result = null;
 		for (Class<?> ifc : clazz.getInterfaces()) {
-			for (Method ifcMethod : ifc.getMethods()) {
-				if (!Modifier.isAbstract(ifcMethod.getModifiers())) {
+			for (Method method : ifc.getMethods()) {
+				if (method.isDefault()) {
 					if (result == null) {
 						result = new ArrayList<>();
 					}
-					result.add(ifcMethod);
+					result.add(method);
 				}
 			}
 		}
@@ -507,16 +507,8 @@ public abstract class ReflectionUtils {
 	 * @see java.lang.Object#equals(Object)
 	 */
 	public static boolean isEqualsMethod(@Nullable Method method) {
-		if (method == null) {
-			return false;
-		}
-		if (method.getParameterCount() != 1) {
-			return false;
-		}
-		if (!method.getName().equals("equals")) {
-			return false;
-		}
-		return method.getParameterTypes()[0] == Object.class;
+		return (method != null && method.getParameterCount() == 1 && method.getName().equals("equals") &&
+				method.getParameterTypes()[0] == Object.class);
 	}
 
 	/**
@@ -524,7 +516,7 @@ public abstract class ReflectionUtils {
 	 * @see java.lang.Object#hashCode()
 	 */
 	public static boolean isHashCodeMethod(@Nullable Method method) {
-		return method != null && method.getParameterCount() == 0 && method.getName().equals("hashCode");
+		return (method != null && method.getParameterCount() == 0 && method.getName().equals("hashCode"));
 	}
 
 	/**
@@ -609,6 +601,31 @@ public abstract class ReflectionUtils {
 			for (Field field : fields) {
 				if ((name == null || name.equals(field.getName())) &&
 						(type == null || type.equals(field.getType()))) {
+					return field;
+				}
+			}
+			searchType = searchType.getSuperclass();
+		}
+		return null;
+	}
+
+	/**
+	 * Attempt to find a {@link Field field} on the supplied {@link Class} with the
+	 * supplied {@code name}. Searches all superclasses up to {@link Object}.
+	 * @param clazz the class to introspect
+	 * @param name the name of the field (with upper/lower case to be ignored)
+	 * @return the corresponding Field object, or {@code null} if not found
+	 * @since 6.1
+	 */
+	@Nullable
+	public static Field findFieldIgnoreCase(Class<?> clazz, String name) {
+		Assert.notNull(clazz, "Class must not be null");
+		Assert.notNull(name, "Name must not be null");
+		Class<?> searchType = clazz;
+		while (Object.class != searchType && searchType != null) {
+			Field[] fields = getDeclaredFields(searchType);
+			for (Field field : fields) {
+				if (name.equalsIgnoreCase(field.getName())) {
 					return field;
 				}
 			}

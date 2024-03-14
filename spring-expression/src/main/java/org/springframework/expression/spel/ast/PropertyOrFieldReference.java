@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
@@ -72,10 +73,16 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	}
 
 
+	/**
+	 * Does this node represent a null-safe property or field reference?
+	 */
 	public boolean isNullSafe() {
 		return this.nullSafe;
 	}
 
+	/**
+	 * Get the name of the referenced property or field.
+	 */
 	public String getName() {
 		return this.name;
 	}
@@ -83,7 +90,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 	@Override
 	public ValueRef getValueRef(ExpressionState state) throws EvaluationException {
-		return new AccessorLValue(this, state.getActiveContextObject(), state.getEvaluationContext(),
+		return new AccessorValueRef(this, state.getActiveContextObject(), state.getEvaluationContext(),
 				state.getConfiguration().isAutoGrowNullReferences());
 	}
 
@@ -92,8 +99,8 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		TypedValue tv = getValueInternal(state.getActiveContextObject(), state.getEvaluationContext(),
 				state.getConfiguration().isAutoGrowNullReferences());
 		PropertyAccessor accessorToUse = this.cachedReadAccessor;
-		if (accessorToUse instanceof CompilablePropertyAccessor accessor) {
-			setExitTypeDescriptor(CodeFlow.toDescriptor(accessor.getPropertyType()));
+		if (accessorToUse instanceof CompilablePropertyAccessor compilablePropertyAccessor) {
+			setExitTypeDescriptor(CodeFlow.toDescriptor(compilablePropertyAccessor.getPropertyType()));
 		}
 		return tv;
 	}
@@ -147,8 +154,12 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	}
 
 	@Override
-	public void setValue(ExpressionState state, @Nullable Object newValue) throws EvaluationException {
-		writeProperty(state.getActiveContextObject(), state.getEvaluationContext(), this.name, newValue);
+	public TypedValue setValueInternal(ExpressionState state, Supplier<TypedValue> valueSupplier)
+			throws EvaluationException {
+
+		TypedValue typedValue = valueSupplier.get();
+		writeProperty(state.getActiveContextObject(), state.getEvaluationContext(), this.name, typedValue.getValue());
+		return typedValue;
 	}
 
 	@Override
@@ -337,7 +348,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow cf) {
 		PropertyAccessor accessorToUse = this.cachedReadAccessor;
-		if (!(accessorToUse instanceof CompilablePropertyAccessor)) {
+		if (!(accessorToUse instanceof CompilablePropertyAccessor compilablePropertyAccessor)) {
 			throw new IllegalStateException("Property accessor is not compilable: " + accessorToUse);
 		}
 
@@ -352,7 +363,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 			mv.visitLabel(continueLabel);
 		}
 
-		((CompilablePropertyAccessor) accessorToUse).generateCode(this.name, mv, cf);
+		compilablePropertyAccessor.generateCode(this.name, mv, cf);
 		cf.pushDescriptor(this.exitTypeDescriptor);
 
 		if (this.originalPrimitiveExitTypeDescriptor != null) {
@@ -380,7 +391,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	}
 
 
-	private static class AccessorLValue implements ValueRef {
+	private static class AccessorValueRef implements ValueRef {
 
 		private final PropertyOrFieldReference ref;
 
@@ -390,7 +401,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 		private final boolean autoGrowNullReferences;
 
-		public AccessorLValue(PropertyOrFieldReference propertyOrFieldReference, TypedValue activeContextObject,
+		public AccessorValueRef(PropertyOrFieldReference propertyOrFieldReference, TypedValue activeContextObject,
 				EvaluationContext evalContext, boolean autoGrowNullReferences) {
 
 			this.ref = propertyOrFieldReference;

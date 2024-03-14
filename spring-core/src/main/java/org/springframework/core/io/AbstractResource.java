@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -220,6 +220,16 @@ public abstract class AbstractResource implements Resource {
 		return null;
 	}
 
+	/**
+	 * Lazily access the logger for debug logging in case of an exception.
+	 */
+	private void debug(Supplier<String> message, Throwable ex) {
+		Log logger = LogFactory.getLog(getClass());
+		if (logger.isDebugEnabled()) {
+			logger.debug(message.get(), ex);
+		}
+	}
+
 
 	/**
 	 * This implementation compares description strings.
@@ -227,8 +237,8 @@ public abstract class AbstractResource implements Resource {
 	 */
 	@Override
 	public boolean equals(@Nullable Object other) {
-		return (this == other || (other instanceof Resource &&
-				((Resource) other).getDescription().equals(getDescription())));
+		return (this == other || (other instanceof Resource that &&
+				getDescription().equals(that.getDescription())));
 	}
 
 	/**
@@ -247,13 +257,6 @@ public abstract class AbstractResource implements Resource {
 	@Override
 	public String toString() {
 		return getDescription();
-	}
-
-	private void debug(Supplier<String> message, Throwable ex) {
-		Log logger = LogFactory.getLog(getClass());
-		if (logger.isDebugEnabled()) {
-			logger.debug(message.get(), ex);
-		}
 	}
 
 }

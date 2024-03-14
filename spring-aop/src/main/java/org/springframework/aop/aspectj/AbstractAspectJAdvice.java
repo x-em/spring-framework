@@ -248,20 +248,26 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 	}
 
 	/**
-	 * Set by creator of this advice object if the argument names are known.
-	 * <p>This could be for example because they have been explicitly specified in XML,
+	 * Set by the creator of this advice object if the argument names are known.
+	 * <p>This could be for example because they have been explicitly specified in XML
 	 * or in an advice annotation.
-	 * @param argNames comma delimited list of arg names
+	 * @param argumentNames comma delimited list of argument names
 	 */
-	public void setArgumentNames(String argNames) {
-		String[] tokens = StringUtils.commaDelimitedListToStringArray(argNames);
+	public void setArgumentNames(String argumentNames) {
+		String[] tokens = StringUtils.commaDelimitedListToStringArray(argumentNames);
 		setArgumentNamesFromStringArray(tokens);
 	}
 
-	public void setArgumentNamesFromStringArray(String... args) {
-		this.argumentNames = new String[args.length];
-		for (int i = 0; i < args.length; i++) {
-			this.argumentNames[i] = args[i].strip();
+	/**
+	 * Set by the creator of this advice object if the argument names are known.
+	 * <p>This could be for example because they have been explicitly specified in XML
+	 * or in an advice annotation.
+	 * @param argumentNames list of argument names
+	 */
+	public void setArgumentNamesFromStringArray(String... argumentNames) {
+		this.argumentNames = new String[argumentNames.length];
+		for (int i = 0; i < argumentNames.length; i++) {
+			this.argumentNames[i] = argumentNames[i].strip();
 			if (!isVariableName(this.argumentNames[i])) {
 				throw new IllegalArgumentException(
 						"'argumentNames' property of AbstractAspectJAdvice contains an argument name '" +
@@ -301,7 +307,7 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 				this.discoveredReturningType = ClassUtils.forName(name, getAspectClassLoader());
 			}
 			catch (Throwable ex) {
-				throw new IllegalArgumentException("Returning name '" + name  +
+				throw new IllegalArgumentException("Returning name '" + name +
 						"' is neither a valid argument name nor the fully-qualified " +
 						"name of a Java type on the classpath. Root cause: " + ex);
 			}
@@ -336,7 +342,7 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 				this.discoveredThrowingType = ClassUtils.forName(name, getAspectClassLoader());
 			}
 			catch (Throwable ex) {
-				throw new IllegalArgumentException("Throwing name '" + name  +
+				throw new IllegalArgumentException("Throwing name '" + name +
 						"' is neither a valid argument name nor the fully-qualified " +
 						"name of a Java type on the classpath. Root cause: " + ex);
 			}
@@ -708,13 +714,8 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 
 		@Override
 		public boolean equals(@Nullable Object other) {
-			if (this == other) {
-				return true;
-			}
-			if (!(other instanceof AdviceExcludingMethodMatcher otherMm)) {
-				return false;
-			}
-			return this.adviceMethod.equals(otherMm.adviceMethod);
+			return (this == other || (other instanceof AdviceExcludingMethodMatcher that &&
+					this.adviceMethod.equals(that.adviceMethod)));
 		}
 
 		@Override

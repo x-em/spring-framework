@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,8 @@ import org.springframework.util.StringUtils;
 /**
  * Abstract base class for {@link PropertySource} implementations backed by command line
  * arguments. The parameterized type {@code T} represents the underlying source of command
- * line options. This may be as simple as a String array in the case of
- * {@link SimpleCommandLinePropertySource}, or specific to a particular API such as JOpt's
- * {@code OptionSet} in the case of {@link JOptCommandLinePropertySource}.
+ * line options. For instance, {@link SimpleCommandLinePropertySource} uses  a String
+ * array.
  *
  * <h3>Purpose and General Usage</h3>
  *
@@ -203,7 +202,6 @@ import org.springframework.util.StringUtils;
  * @param <T> the source type
  * @see PropertySource
  * @see SimpleCommandLinePropertySource
- * @see JOptCommandLinePropertySource
  */
 public abstract class CommandLinePropertySource<T> extends EnumerablePropertySource<T> {
 
@@ -252,7 +250,7 @@ public abstract class CommandLinePropertySource<T> extends EnumerablePropertySou
 	@Override
 	public final boolean containsProperty(String name) {
 		if (this.nonOptionArgsPropertyName.equals(name)) {
-			return !this.getNonOptionArgs().isEmpty();
+			return !getNonOptionArgs().isEmpty();
 		}
 		return this.containsOption(name);
 	}
@@ -270,7 +268,7 @@ public abstract class CommandLinePropertySource<T> extends EnumerablePropertySou
 	@Nullable
 	public final String getProperty(String name) {
 		if (this.nonOptionArgsPropertyName.equals(name)) {
-			Collection<String> nonOptionArguments = this.getNonOptionArgs();
+			Collection<String> nonOptionArguments = getNonOptionArgs();
 			if (nonOptionArguments.isEmpty()) {
 				return null;
 			}
@@ -278,7 +276,7 @@ public abstract class CommandLinePropertySource<T> extends EnumerablePropertySou
 				return StringUtils.collectionToCommaDelimitedString(nonOptionArguments);
 			}
 		}
-		Collection<String> optionValues = this.getOptionValues(name);
+		Collection<String> optionValues = getOptionValues(name);
 		if (optionValues == null) {
 			return null;
 		}

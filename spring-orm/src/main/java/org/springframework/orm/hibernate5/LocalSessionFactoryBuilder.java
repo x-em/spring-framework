@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import org.hibernate.resource.jdbc.spi.PhysicalConnectionHandlingMode;
 
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.core.InfrastructureProxy;
+import org.springframework.core.SpringProperties;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -59,6 +60,7 @@ import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternUtils;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.ClassFormatException;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -109,6 +111,11 @@ public class LocalSessionFactoryBuilder extends Configuration {
 			new AnnotationTypeFilter(MappedSuperclass.class, false)};
 
 	private static final TypeFilter CONVERTER_TYPE_FILTER = new AnnotationTypeFilter(Converter.class, false);
+
+	private static final String IGNORE_CLASSFORMAT_PROPERTY_NAME = "spring.classformat.ignore";
+
+	private static final boolean shouldIgnoreClassFormatException =
+			SpringProperties.getFlag(IGNORE_CLASSFORMAT_PROPERTY_NAME);
 
 
 	private final ResourcePatternResolver resourcePatternResolver;
@@ -186,26 +193,25 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	public LocalSessionFactoryBuilder setJtaTransactionManager(Object jtaTransactionManager) {
 		Assert.notNull(jtaTransactionManager, "Transaction manager reference must not be null");
 
-		if (jtaTransactionManager instanceof JtaTransactionManager) {
+		if (jtaTransactionManager instanceof JtaTransactionManager springJtaTm) {
 			boolean webspherePresent = ClassUtils.isPresent("com.ibm.wsspi.uow.UOWManager", getClass().getClassLoader());
 			if (webspherePresent) {
 				getProperties().put(AvailableSettings.JTA_PLATFORM,
 						"org.hibernate.engine.transaction.jta.platform.internal.WebSphereExtendedJtaPlatform");
 			}
 			else {
-				JtaTransactionManager jtaTm = (JtaTransactionManager) jtaTransactionManager;
-				if (jtaTm.getTransactionManager() == null) {
+				if (springJtaTm.getTransactionManager() == null) {
 					throw new IllegalArgumentException(
 							"Can only apply JtaTransactionManager which has a TransactionManager reference set");
 				}
 				getProperties().put(AvailableSettings.JTA_PLATFORM,
-						new ConfigurableJtaPlatform(jtaTm.getTransactionManager(), jtaTm.getUserTransaction(),
-								jtaTm.getTransactionSynchronizationRegistry()));
+						new ConfigurableJtaPlatform(springJtaTm.getTransactionManager(), springJtaTm.getUserTransaction(),
+								springJtaTm.getTransactionSynchronizationRegistry()));
 			}
 		}
-		else if (jtaTransactionManager instanceof TransactionManager) {
+		else if (jtaTransactionManager instanceof TransactionManager jtaTm) {
 			getProperties().put(AvailableSettings.JTA_PLATFORM,
-					new ConfigurableJtaPlatform((TransactionManager) jtaTransactionManager, null, null));
+					new ConfigurableJtaPlatform(jtaTm, null, null));
 		}
 		else {
 			throw new IllegalArgumentException(
@@ -336,6 +342,14 @@ public class LocalSessionFactoryBuilder extends Configuration {
 					catch (FileNotFoundException ex) {
 						// Ignore non-readable resource
 					}
+					catch (ClassFormatException ex) {
+						if (!shouldIgnoreClassFormatException) {
+							throw new MappingException("Incompatible class format in " + resource, ex);
+						}
+					}
+					catch (Throwable ex) {
+						throw new MappingException("Failed to read candidate component class: " + resource, ex);
+					}
 				}
 			}
 		}
@@ -413,28 +427,25 @@ public class LocalSessionFactoryBuilder extends Configuration {
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			switch (method.getName()) {
-				case "equals":
-					// Only consider equal when proxies are identical.
-					return (proxy == args[0]);
-				case "hashCode":
-					// Use hashCode of EntityManagerFactory proxy.
-					return System.identityHashCode(proxy);
-				case "getProperties":
-					return getProperties();
-				case "getWrappedObject":
-					// Call coming in through InfrastructureProxy interface...
-					return getSessionFactory();
-			}
-
-			// Regular delegation to the target SessionFactory,
-			// enforcing its full initialization...
-			try {
-				return method.invoke(getSessionFactory(), args);
-			}
-			catch (InvocationTargetException ex) {
-				throw ex.getTargetException();
-			}
+			return switch (method.getName()) {
+				// Only consider equal when proxies are identical.
+				case "equals" -> (proxy == args[0]);
+				// Use hashCode of EntityManagerFactory proxy.
+				case "hashCode" -> System.identityHashCode(proxy);
+				case "getProperties" -> getProperties();
+				// Call coming in through InfrastructureProxy interface...
+				case "getWrappedObject" -> getSessionFactory();
+				default -> {
+					try {
+						// Regular delegation to the target SessionFactory,
+						// enforcing its full initialization...
+						yield method.invoke(getSessionFactory(), args);
+					}
+					catch (InvocationTargetException ex) {
+						throw ex.getTargetException();
+					}
+				}
+			};
 		}
 
 		private SessionFactory getSessionFactory() {
@@ -447,9 +458,9 @@ public class LocalSessionFactoryBuilder extends Configuration {
 			}
 			catch (ExecutionException ex) {
 				Throwable cause = ex.getCause();
-				if (cause instanceof HibernateException) {
+				if (cause instanceof HibernateException hibernateException) {
 					// Rethrow a provider configuration exception (possibly with a nested cause) directly
-					throw (HibernateException) cause;
+					throw hibernateException;
 				}
 				throw new IllegalStateException("Failed to asynchronously initialize Hibernate SessionFactory: " +
 						ex.getMessage(), cause);

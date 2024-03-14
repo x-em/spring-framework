@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.cfg.DatatypeFeature;
 import com.fasterxml.jackson.databind.cfg.HandlerInstantiator;
 import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.jsontype.TypeResolverBuilder;
@@ -55,6 +56,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.xml.JacksonXmlModule;
 import com.fasterxml.jackson.dataformat.xml.XmlFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.ApplicationContext;
@@ -86,18 +88,25 @@ import org.springframework.util.xml.StaxUtils;
  * support for Java 8 Date &amp; Time API types</li>
  * <li><a href="https://github.com/FasterXML/jackson-module-kotlin">jackson-module-kotlin</a>:
  * support for Kotlin classes and data classes</li>
+ * <li><a href="https://github.com/FasterXML/jackson-modules-java8/tree/2.17/parameter-names">jackson-modules-java8/parameter-names</a>:
+ * support for accessing parameter names</li>
  * </ul>
  *
  * @author Sebastien Deleuze
  * @author Juergen Hoeller
  * @author Tadaya Tsuyukubo
  * @author Eddú Meléndez
+ * @author Hyoungjune Kim
  * @since 4.1.1
  * @see #build()
  * @see #configure(ObjectMapper)
  * @see Jackson2ObjectMapperFactoryBean
  */
 public class Jackson2ObjectMapperBuilder {
+
+	private static final boolean jackson2XmlPresent = ClassUtils.isPresent(
+			"com.fasterxml.jackson.dataformat.xml.XmlMapper", Jackson2ObjectMapperBuilder.class.getClassLoader());
+
 
 	private final Map<Class<?>, Class<?>> mixIns = new LinkedHashMap<>();
 
@@ -577,7 +586,7 @@ public class Jackson2ObjectMapperBuilder {
 	 * @see com.fasterxml.jackson.databind.Module
 	 */
 	public Jackson2ObjectMapperBuilder modulesToInstall(Module... modules) {
-		this.modules = Arrays.asList(modules);
+		this.modules = new ArrayList<>(Arrays.asList(modules));
 		this.findWellKnownModules = true;
 		return this;
 	}
@@ -755,7 +764,12 @@ public class Jackson2ObjectMapperBuilder {
 			objectMapper.setFilterProvider(this.filters);
 		}
 
-		objectMapper.addMixIn(ProblemDetail.class, ProblemDetailJacksonMixin.class);
+		if (jackson2XmlPresent) {
+			objectMapper.addMixIn(ProblemDetail.class, ProblemDetailJacksonXmlMixin.class);
+		}
+		else {
+			objectMapper.addMixIn(ProblemDetail.class, ProblemDetailJacksonMixin.class);
+		}
 		this.mixIns.forEach(objectMapper::addMixIn);
 
 		if (!this.serializers.isEmpty() || !this.deserializers.isEmpty()) {
@@ -830,6 +844,9 @@ public class Jackson2ObjectMapperBuilder {
 		else if (feature instanceof DeserializationFeature deserializationFeature) {
 			objectMapper.configure(deserializationFeature, enabled);
 		}
+		else if (feature instanceof DatatypeFeature datatypeFeature) {
+			objectMapper.configure(datatypeFeature, enabled);
+		}
 		else if (feature instanceof MapperFeature mapperFeature) {
 			objectMapper.configure(mapperFeature, enabled);
 		}
@@ -848,6 +865,16 @@ public class Jackson2ObjectMapperBuilder {
 		}
 		catch (ClassNotFoundException ex) {
 			// jackson-datatype-jdk8 not available
+		}
+
+		try {
+			Class<? extends Module> parameterNamesModuleClass = (Class<? extends Module>)
+					ClassUtils.forName("com.fasterxml.jackson.module.paramnames.ParameterNamesModule", this.moduleClassLoader);
+			Module parameterNamesModule = BeanUtils.instantiateClass(parameterNamesModuleClass);
+			modulesToRegister.set(parameterNamesModule.getTypeId(), parameterNamesModule);
+		}
+		catch (ClassNotFoundException ex) {
+			// jackson-module-parameter-names not available
 		}
 
 		try {
@@ -911,6 +938,15 @@ public class Jackson2ObjectMapperBuilder {
 		return new Jackson2ObjectMapperBuilder().factory(new CborFactoryInitializer().create());
 	}
 
+	/**
+	 * Obtain a {@link Jackson2ObjectMapperBuilder} instance in order to
+	 * build a YAML data format {@link ObjectMapper} instance.
+	 * @since 6.2
+	 */
+	public static Jackson2ObjectMapperBuilder yaml() {
+		return new Jackson2ObjectMapperBuilder().factory(new YamlFactoryInitializer().create());
+	}
+
 
 	private static class XmlObjectMapperInitializer {
 
@@ -948,6 +984,13 @@ public class Jackson2ObjectMapperBuilder {
 
 		public JsonFactory create() {
 			return new CBORFactory();
+		}
+	}
+
+	private static class YamlFactoryInitializer {
+
+		public JsonFactory create() {
+			return new YAMLFactory();
 		}
 	}
 

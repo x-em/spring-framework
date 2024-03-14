@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package org.springframework.core.test.tools;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -31,7 +31,6 @@ import org.springframework.util.Assert;
  * @see ResourceFile
  */
 public abstract sealed class DynamicFile permits SourceFile, ResourceFile {
-
 
 	private final String path;
 
@@ -81,22 +80,16 @@ public abstract sealed class DynamicFile permits SourceFile, ResourceFile {
 		return this.path;
 	}
 
+
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (obj == null || getClass() != obj.getClass()) {
-			return false;
-		}
-		DynamicFile other = (DynamicFile) obj;
-		return Objects.equals(this.path, other.path)
-				&& Objects.equals(this.content, other.content);
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof DynamicFile that &&
+				this.path.equals(that.path) && this.content.equals(that.content)));
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.path, this.content);
+		return this.path.hashCode();
 	}
 
 	@Override

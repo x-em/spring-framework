@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ public class MethodMapTransactionAttributeSource
 	public void addTransactionalMethod(Class<?> clazz, String mappedName, TransactionAttribute attr) {
 		Assert.notNull(clazz, "Class must not be null");
 		Assert.notNull(mappedName, "Mapped name must not be null");
-		String name = clazz.getName() + '.'  + mappedName;
+		String name = clazz.getName() + '.' + mappedName;
 
 		Method[] methods = clazz.getDeclaredMethods();
 		List<Method> matchingMethods = new ArrayList<>();
@@ -239,13 +239,8 @@ public class MethodMapTransactionAttributeSource
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof MethodMapTransactionAttributeSource otherTas)) {
-			return false;
-		}
-		return ObjectUtils.nullSafeEquals(this.methodMap, otherTas.methodMap);
+		return (this == other || (other instanceof MethodMapTransactionAttributeSource otherTas &&
+				ObjectUtils.nullSafeEquals(this.methodMap, otherTas.methodMap)));
 	}
 
 	@Override

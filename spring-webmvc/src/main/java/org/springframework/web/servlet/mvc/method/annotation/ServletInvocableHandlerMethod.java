@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import org.springframework.web.method.support.HandlerMethodReturnValueHandlerCom
 import org.springframework.web.method.support.InvocableHandlerMethod;
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.View;
+import org.springframework.web.servlet.mvc.method.annotation.ReactiveTypeHandler.CollectedValuesList;
 
 /**
  * Extends {@link InvocableHandlerMethod} with the ability to handle return
@@ -199,7 +200,7 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 	 * actually invoking the controller method. This is useful when processing
 	 * async return values (e.g. Callable, DeferredResult, ListenableFuture).
 	 */
-	ServletInvocableHandlerMethod wrapConcurrentResult(Object result) {
+	ServletInvocableHandlerMethod wrapConcurrentResult(@Nullable Object result) {
 		return new ConcurrentResultHandlerMethod(result, new ConcurrentResultMethodParameter(result));
 	}
 
@@ -214,13 +215,13 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 
 		private final MethodParameter returnType;
 
-		public ConcurrentResultHandlerMethod(final Object result, ConcurrentResultMethodParameter returnType) {
+		public ConcurrentResultHandlerMethod(@Nullable Object result, ConcurrentResultMethodParameter returnType) {
 			super((Callable<Object>) () -> {
-				if (result instanceof Exception) {
-					throw (Exception) result;
+				if (result instanceof Exception exception) {
+					throw exception;
 				}
-				else if (result instanceof Throwable) {
-					throw new ServletException("Async processing failed: " + result, (Throwable) result);
+				else if (result instanceof Throwable throwable) {
+					throw new ServletException("Async processing failed: " + result, throwable);
 				}
 				return result;
 			}, CALLABLE_METHOD);
@@ -271,18 +272,18 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 	 * that's null falling back on the generic type within the declared async
 	 * return type, e.g. Foo instead of {@code DeferredResult<Foo>}.
 	 */
-	private class ConcurrentResultMethodParameter extends HandlerMethodParameter {
+	private class ConcurrentResultMethodParameter extends AnnotatedMethodParameter {
 
 		@Nullable
 		private final Object returnValue;
 
 		private final ResolvableType returnType;
 
-		public ConcurrentResultMethodParameter(Object returnValue) {
+		public ConcurrentResultMethodParameter(@Nullable Object returnValue) {
 			super(-1);
 			this.returnValue = returnValue;
-			this.returnType = (returnValue instanceof ReactiveTypeHandler.CollectedValuesList ?
-					((ReactiveTypeHandler.CollectedValuesList) returnValue).getReturnType() :
+			this.returnType = (returnValue instanceof CollectedValuesList cvList ?
+					cvList.getReturnType() :
 					KotlinDetector.isSuspendingFunction(super.getMethod()) ?
 					ResolvableType.forMethodParameter(getReturnType()) :
 					ResolvableType.forType(super.getGenericParameterType()).getGeneric());
@@ -316,7 +317,7 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 			// even if actual return type is ResponseEntity<Flux<T>>
 			return (super.hasMethodAnnotation(annotationType) ||
 					(annotationType == ResponseBody.class &&
-							this.returnValue instanceof ReactiveTypeHandler.CollectedValuesList));
+							this.returnValue instanceof CollectedValuesList));
 		}
 
 		@Override

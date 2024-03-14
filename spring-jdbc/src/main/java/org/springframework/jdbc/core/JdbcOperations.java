@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,12 +35,19 @@ import org.springframework.lang.Nullable;
  * <p>Alternatively, the standard JDBC infrastructure can be mocked.
  * However, mocking this interface constitutes significantly less work.
  * As an alternative to a mock objects approach to testing data access code,
- * consider the powerful integration testing support provided via the <em>Spring
- * TestContext Framework</em>, in the {@code spring-test} artifact.
+ * consider the powerful integration testing support provided via the
+ * <em>Spring TestContext Framework</em>, in the {@code spring-test} artifact.
+ *
+ * <p><b>NOTE: As of 6.1, there is a unified JDBC access facade available in
+ * the form of {@link org.springframework.jdbc.core.simple.JdbcClient}.</b>
+ * {@code JdbcClient} provides a fluent API style for common JDBC queries/updates
+ * with flexible use of indexed or named parameters. It delegates to
+ * {@code JdbcOperations}/{@code NamedParameterJdbcOperations} for actual execution.
  *
  * @author Rod Johnson
  * @author Juergen Hoeller
  * @see JdbcTemplate
+ * @see org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations
  */
 public interface JdbcOperations {
 
@@ -926,12 +933,14 @@ public interface JdbcOperations {
 	 * <p>Note that the given PreparedStatementCreator has to create a statement
 	 * with activated extraction of generated keys (a JDBC 3.0 feature). This can
 	 * either be done directly or through using a PreparedStatementCreatorFactory.
+	 * <p>This method requires support for generated keys in the JDBC driver.
 	 * @param psc a callback that provides SQL and any necessary parameters
 	 * @param generatedKeyHolder a KeyHolder that will hold the generated keys
 	 * @return the number of rows affected
 	 * @throws DataAccessException if there is any problem issuing the update
 	 * @see PreparedStatementCreatorFactory
 	 * @see org.springframework.jdbc.support.GeneratedKeyHolder
+	 * @see java.sql.DatabaseMetaData#supportsGetGeneratedKeys()
 	 */
 	int update(PreparedStatementCreator psc, KeyHolder generatedKeyHolder) throws DataAccessException;
 
@@ -989,6 +998,31 @@ public interface JdbcOperations {
 	 * @throws DataAccessException if there is any problem issuing the update
 	 */
 	int[] batchUpdate(String sql, BatchPreparedStatementSetter pss) throws DataAccessException;
+
+	/**
+	 * Issue multiple update statements on a single PreparedStatement,
+	 * using batch updates and a BatchPreparedStatementSetter to set values.
+	 * Generated keys will be put into the given KeyHolder.
+	 * <p>Note that the given PreparedStatementCreator has to create a statement
+	 * with activated extraction of generated keys (a JDBC 3.0 feature). This can
+	 * either be done directly or through using a PreparedStatementCreatorFactory.
+	 * <p>This method requires support for generated keys in the JDBC driver.
+	 * It will fall back to separate updates on a single PreparedStatement
+	 * if the JDBC driver does not support batch updates.
+	 * @param psc a callback that creates a PreparedStatement given a Connection
+	 * @param pss object to set parameters on the PreparedStatement
+	 * created by this method
+	 * @param generatedKeyHolder a KeyHolder that will hold the generated keys
+	 * @return an array of the number of rows affected by each statement
+	 * (may also contain special JDBC-defined negative values for affected rows such as
+	 * {@link java.sql.Statement#SUCCESS_NO_INFO}/{@link java.sql.Statement#EXECUTE_FAILED})
+	 * @throws DataAccessException if there is any problem issuing the update
+	 * @since 6.1
+	 * @see org.springframework.jdbc.support.GeneratedKeyHolder
+	 * @see java.sql.DatabaseMetaData#supportsGetGeneratedKeys()
+	 */
+	int[] batchUpdate(PreparedStatementCreator psc, BatchPreparedStatementSetter pss,
+			KeyHolder generatedKeyHolder) throws DataAccessException;
 
 	/**
 	 * Execute a batch using the supplied SQL statement with the batch of supplied arguments.

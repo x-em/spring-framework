@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,12 +83,13 @@ import org.springframework.stereotype.Component;
  *
  * <h3>Via component scanning</h3>
  *
- * <p>{@code @Configuration} is meta-annotated with {@link Component @Component}, therefore
- * {@code @Configuration} classes are candidates for component scanning (typically using
- * Spring XML's {@code <context:component-scan/>} element) and therefore may also take
+ * <p>Since {@code @Configuration} is meta-annotated with {@link Component @Component},
+ * {@code @Configuration} classes are candidates for component scanning &mdash;
+ * for example, using {@link ComponentScan @ComponentScan} or Spring XML's
+ * {@code <context:component-scan/>} element &mdash; and therefore may also take
  * advantage of {@link Autowired @Autowired}/{@link jakarta.inject.Inject @Inject}
- * like any regular {@code @Component}. In particular, if a single constructor is present
- * autowiring semantics will be applied transparently for that constructor:
+ * like any regular {@code @Component}. In particular, if a single constructor is
+ * present, autowiring semantics will be applied transparently for that constructor:
  *
  * <pre class="code">
  * &#064;Configuration
@@ -104,8 +105,8 @@ import org.springframework.stereotype.Component;
  *
  * }</pre>
  *
- * <p>{@code @Configuration} classes may not only be bootstrapped using
- * component scanning, but may also themselves <em>configure</em> component scanning using
+ * <p>{@code @Configuration} classes may not only be bootstrapped using component
+ * scanning, but may also themselves <em>configure</em> component scanning using
  * the {@link ComponentScan @ComponentScan} annotation:
  *
  * <pre class="code">
@@ -433,6 +434,7 @@ public @interface Configuration {
 	 * {@link AnnotationConfigApplicationContext}. If the {@code @Configuration} class
 	 * is registered as a traditional XML bean definition, the name/id of the bean
 	 * element will take precedence.
+	 * <p>Alias for {@link Component#value}.
 	 * @return the explicit component name, if any (or empty String otherwise)
 	 * @see AnnotationBeanNameGenerator
 	 */

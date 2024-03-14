@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,14 @@
 
 package org.springframework.http.server.observation;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.server.observation.ServerHttpObservationDocumentation.HighCardinalityKeyNames;
@@ -55,6 +60,8 @@ public class DefaultServerRequestObservationConvention implements ServerRequestO
 
 	private static final KeyValue HTTP_URL_UNKNOWN = KeyValue.of(HighCardinalityKeyNames.HTTP_URL, "UNKNOWN");
 
+	private static final Set<String> HTTP_METHODS = Stream.of(HttpMethod.values()).map(HttpMethod::name).collect(Collectors.toUnmodifiableSet());
+
 
 	private final String name;
 
@@ -84,25 +91,31 @@ public class DefaultServerRequestObservationConvention implements ServerRequestO
 	public String getContextualName(ServerRequestObservationContext context) {
 		String httpMethod = context.getCarrier().getMethod().toLowerCase();
 		if (context.getPathPattern() != null) {
-			return "http %s %s".formatted(httpMethod, context.getPathPattern());
+			return "http " + httpMethod + " " + context.getPathPattern();
 		}
 		return "http " + httpMethod;
 	}
 
 	@Override
 	public KeyValues getLowCardinalityKeyValues(ServerRequestObservationContext context) {
-		return KeyValues.of(method(context), uri(context), status(context), exception(context), outcome(context));
+		// Make sure that KeyValues entries are already sorted by name for better performance
+		return KeyValues.of(exception(context), method(context), outcome(context), status(context), uri(context));
 	}
 
 	@Override
 	public KeyValues getHighCardinalityKeyValues(ServerRequestObservationContext context) {
+		// Make sure that KeyValues entries are already sorted by name for better performance
 		return KeyValues.of(httpUrl(context));
 	}
 
 	protected KeyValue method(ServerRequestObservationContext context) {
-		return (context.getCarrier() != null) ?
-				KeyValue.of(LowCardinalityKeyNames.METHOD, context.getCarrier().getMethod()) :
-				METHOD_UNKNOWN;
+		if (context.getCarrier() != null) {
+			String httpMethod = context.getCarrier().getMethod();
+			if (HTTP_METHODS.contains(httpMethod)) {
+				return KeyValue.of(LowCardinalityKeyNames.METHOD, httpMethod);
+			}
+		}
+		return METHOD_UNKNOWN;
 	}
 
 	protected KeyValue status(ServerRequestObservationContext context) {

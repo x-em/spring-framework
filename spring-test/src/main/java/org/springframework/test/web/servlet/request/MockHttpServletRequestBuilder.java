@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,6 +104,9 @@ public class MockHttpServletRequestBuilder
 	private MockHttpSession session;
 
 	@Nullable
+	private String remoteAddress;
+
+	@Nullable
 	private String characterEncoding;
 
 	@Nullable
@@ -149,7 +152,8 @@ public class MockHttpServletRequestBuilder
 		Assert.notNull(url, "'url' must not be null");
 		Assert.isTrue(url.isEmpty() || url.startsWith("/") || url.startsWith("http://") || url.startsWith("https://"),
 				() -> "'url' should start with a path or be a complete HTTP URL: " + url);
-		return UriComponentsBuilder.fromUriString(url).buildAndExpand(vars).encode().toUri();
+		String uriString = (url.isEmpty() ? "/" : url);
+		return UriComponentsBuilder.fromUriString(uriString).buildAndExpand(vars).encode().toUri();
 	}
 
 	/**
@@ -526,6 +530,17 @@ public class MockHttpServletRequestBuilder
 	}
 
 	/**
+	 * Set the remote address of the request.
+	 * @param remoteAddress the remote address (IP)
+	 * @since 6.0.10
+	 */
+	public MockHttpServletRequestBuilder remoteAddress(String remoteAddress) {
+		Assert.hasText(remoteAddress, "'remoteAddress' must not be null or blank");
+		this.remoteAddress = remoteAddress;
+		return this;
+	}
+
+	/**
 	 * An extension point for further initialization of {@link MockHttpServletRequest}
 	 * in ways not built directly into the {@code MockHttpServletRequestBuilder}.
 	 * Implementation of this interface can have builder-style methods themselves
@@ -581,6 +596,9 @@ public class MockHttpServletRequestBuilder
 		}
 		if (this.session == null) {
 			this.session = parentBuilder.session;
+		}
+		if (this.remoteAddress == null) {
+			this.remoteAddress = parentBuilder.remoteAddress;
 		}
 
 		if (this.characterEncoding == null) {
@@ -685,6 +703,9 @@ public class MockHttpServletRequestBuilder
 		}
 		if (this.principal != null) {
 			request.setUserPrincipal(this.principal);
+		}
+		if (this.remoteAddress != null) {
+			request.setRemoteAddr(this.remoteAddress);
 		}
 		if (this.session != null) {
 			request.setSession(this.session);

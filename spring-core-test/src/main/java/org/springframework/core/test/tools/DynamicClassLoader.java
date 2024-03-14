@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,16 +85,15 @@ public class DynamicClassLoader extends ClassLoader {
 
 	@Override
 	protected Class<?> findClass(String name) throws ClassNotFoundException {
-		byte[] bytes = findClassBytes(name);
-		if (bytes != null) {
-			return defineClass(name, bytes);
-		}
-		return super.findClass(name);
+		Class<?> clazz = defineClass(name, findClassBytes(name));
+		return (clazz != null ? clazz : super.findClass(name));
 	}
 
-
-
-	private Class<?> defineClass(String name, byte[] bytes) {
+	@Nullable
+	private Class<?> defineClass(String name, @Nullable byte[] bytes) {
+		if (bytes == null) {
+			return null;
+		}
 		if (this.defineClassMethod != null) {
 			return (Class<?>) ReflectionUtils.invokeMethod(this.defineClassMethod,
 					getParent(), name, bytes, 0, bytes.length);
@@ -140,9 +139,10 @@ public class DynamicClassLoader extends ClassLoader {
 			return classFile.getContent();
 		}
 		DynamicClassFileObject dynamicClassFile = this.dynamicClassFiles.get(name);
-		return (dynamicClassFile != null) ? dynamicClassFile.getBytes() : null;
+		return (dynamicClassFile != null ? dynamicClassFile.getBytes() : null);
 	}
 
+	@SuppressWarnings("deprecation")  // on JDK 20
 	private URL createResourceUrl(String name, Supplier<byte[]> bytesSupplier) {
 		try {
 			return new URL(null, "resource:///" + name,

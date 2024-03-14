@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,11 +57,11 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.mockito.Mockito.mock;
 
 /**
- * Unit tests for {@link ModelInitializer}.
+ * Tests for {@link ModelInitializer}.
  *
  * @author Rossen Stoyanchev
  */
-public class ModelInitializerTests {
+class ModelInitializerTests {
 
 	private static final Duration TIMEOUT = Duration.ofMillis(5000);
 
@@ -72,21 +72,22 @@ public class ModelInitializerTests {
 
 
 	@BeforeEach
-	public void setup() {
+	void setup() {
 		ReactiveAdapterRegistry adapterRegistry = ReactiveAdapterRegistry.getSharedInstance();
 
 		ArgumentResolverConfigurer resolverConfigurer = new ArgumentResolverConfigurer();
 		resolverConfigurer.addCustomResolver(new ModelMethodArgumentResolver(adapterRegistry));
 
 		ControllerMethodResolver methodResolver = new ControllerMethodResolver(
-				resolverConfigurer, adapterRegistry, new StaticApplicationContext(), Collections.emptyList());
+				resolverConfigurer, adapterRegistry, new StaticApplicationContext(),
+				Collections.emptyList(), null);
 
 		this.modelInitializer = new ModelInitializer(methodResolver, adapterRegistry);
 	}
 
 
 	@Test
-	public void initBinderMethod() {
+	void initBinderMethod() {
 		Validator validator = mock();
 
 		TestController controller = new TestController();
@@ -103,7 +104,7 @@ public class ModelInitializerTests {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	public void modelAttributeMethods() {
+	void modelAttributeMethods() {
 		TestController controller = new TestController();
 		InitBinderBindingContext context = getBindingContext(controller);
 
@@ -131,7 +132,7 @@ public class ModelInitializerTests {
 	}
 
 	@Test
-	public void saveModelAttributeToSession() {
+	void saveModelAttributeToSession() {
 		TestController controller = new TestController();
 		InitBinderBindingContext context = getBindingContext(controller);
 
@@ -143,13 +144,13 @@ public class ModelInitializerTests {
 		assertThat(session).isNotNull();
 		assertThat(session.getAttributes()).isEmpty();
 
-		context.saveModel();
+		context.updateModel(this.exchange);
 		assertThat(session.getAttributes()).hasSize(1);
 		assertThat(((TestBean) session.getRequiredAttribute("bean")).getName()).isEqualTo("Bean");
 	}
 
 	@Test
-	public void retrieveModelAttributeFromSession() {
+	void retrieveModelAttributeFromSession() {
 		WebSession session = this.exchange.getSession().block(TIMEOUT);
 		assertThat(session).isNotNull();
 
@@ -163,13 +164,13 @@ public class ModelInitializerTests {
 		HandlerMethod handlerMethod = new HandlerMethod(controller, method);
 		this.modelInitializer.initModel(handlerMethod, context, this.exchange).block(TIMEOUT);
 
-		context.saveModel();
+		context.updateModel(this.exchange);
 		assertThat(session.getAttributes()).hasSize(1);
 		assertThat(((TestBean) session.getRequiredAttribute("bean")).getName()).isEqualTo("Session Bean");
 	}
 
 	@Test
-	public void requiredSessionAttributeMissing() {
+	void requiredSessionAttributeMissing() {
 		TestController controller = new TestController();
 		InitBinderBindingContext context = getBindingContext(controller);
 
@@ -181,7 +182,7 @@ public class ModelInitializerTests {
 	}
 
 	@Test
-	public void clearModelAttributeFromSession() {
+	void clearModelAttributeFromSession() {
 		WebSession session = this.exchange.getSession().block(TIMEOUT);
 		assertThat(session).isNotNull();
 
@@ -196,7 +197,7 @@ public class ModelInitializerTests {
 		this.modelInitializer.initModel(handlerMethod, context, this.exchange).block(TIMEOUT);
 
 		context.getSessionStatus().setComplete();
-		context.saveModel();
+		context.updateModel(this.exchange);
 
 		assertThat(session.getAttributes()).isEmpty();
 	}
@@ -210,7 +211,8 @@ public class ModelInitializerTests {
 						.toList();
 
 		WebBindingInitializer bindingInitializer = new ConfigurableWebBindingInitializer();
-		return new InitBinderBindingContext(bindingInitializer, binderMethods);
+		return new InitBinderBindingContext(
+				bindingInitializer, binderMethods, false, ReactiveAdapterRegistry.getSharedInstance());
 	}
 
 

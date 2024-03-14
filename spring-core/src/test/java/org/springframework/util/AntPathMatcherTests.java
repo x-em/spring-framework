@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
- * Unit tests for {@link AntPathMatcher}.
+ * Tests for {@link AntPathMatcher}.
  *
  * @author Alef Arendsen
  * @author Seth Ladd
@@ -143,7 +143,7 @@ class AntPathMatcherTests {
 
 	// SPR-14247
 	@Test
-	void matchWithTrimTokensEnabled() throws Exception {
+	void matchWithTrimTokensEnabled() {
 		pathMatcher.setTrimTokens(true);
 
 		assertThat(pathMatcher.match("/foo/bar", "/foo /bar")).isTrue();
@@ -299,8 +299,8 @@ class AntPathMatcherTests {
 	}
 
 	@Test
-	void extractPathWithinPattern() throws Exception {
-		assertThat(pathMatcher.extractPathWithinPattern("/docs/commit.html", "/docs/commit.html")).isEqualTo("");
+	void extractPathWithinPattern() {
+		assertThat(pathMatcher.extractPathWithinPattern("/docs/commit.html", "/docs/commit.html")).isEmpty();
 
 		assertThat(pathMatcher.extractPathWithinPattern("/docs/*", "/docs/cvs/commit")).isEqualTo("cvs/commit");
 		assertThat(pathMatcher.extractPathWithinPattern("/docs/cvs/*.html", "/docs/cvs/commit.html")).isEqualTo("commit.html");
@@ -325,7 +325,7 @@ class AntPathMatcherTests {
 	}
 
 	@Test
-	void extractUriTemplateVariables() throws Exception {
+	void extractUriTemplateVariables() {
 		Map<String, String> result = pathMatcher.extractUriTemplateVariables("/hotels/{hotel}", "/hotels/1");
 		assertThat(result).isEqualTo(Collections.singletonMap("hotel", "1"));
 
@@ -410,7 +410,7 @@ class AntPathMatcherTests {
 
 	@Test
 	void combine() {
-		assertThat(pathMatcher.combine(null, null)).isEqualTo("");
+		assertThat(pathMatcher.combine(null, null)).isEmpty();
 		assertThat(pathMatcher.combine("/hotels", null)).isEqualTo("/hotels");
 		assertThat(pathMatcher.combine(null, "/hotels")).isEqualTo("/hotels");
 		assertThat(pathMatcher.combine("/hotels/*", "booking")).isEqualTo("/hotels/booking");
@@ -513,74 +513,63 @@ class AntPathMatcherTests {
 		paths.add(null);
 		paths.add("/hotels/new");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isNull();
+		assertThat(paths).containsExactly("/hotels/new", null);
 		paths.clear();
 
 		paths.add("/hotels/new");
 		paths.add(null);
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isNull();
+		assertThat(paths).containsExactly("/hotels/new", null);
 		paths.clear();
 
 		paths.add("/hotels/*");
 		paths.add("/hotels/new");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isEqualTo("/hotels/*");
+		assertThat(paths).containsExactly("/hotels/new", "/hotels/*");
 		paths.clear();
 
 		paths.add("/hotels/new");
 		paths.add("/hotels/*");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isEqualTo("/hotels/*");
+		assertThat(paths).containsExactly("/hotels/new", "/hotels/*");
 		paths.clear();
 
 		paths.add("/hotels/**");
 		paths.add("/hotels/*");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/*");
-		assertThat(paths.get(1)).isEqualTo("/hotels/**");
+		assertThat(paths).containsExactly("/hotels/*", "/hotels/**");
 		paths.clear();
 
 		paths.add("/hotels/*");
 		paths.add("/hotels/**");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/*");
-		assertThat(paths.get(1)).isEqualTo("/hotels/**");
+		assertThat(paths).containsExactly("/hotels/*", "/hotels/**");
 		paths.clear();
 
 		paths.add("/hotels/{hotel}");
 		paths.add("/hotels/new");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isEqualTo("/hotels/{hotel}");
+		assertThat(paths).containsExactly("/hotels/new", "/hotels/{hotel}");
 		paths.clear();
 
 		paths.add("/hotels/new");
 		paths.add("/hotels/{hotel}");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isEqualTo("/hotels/{hotel}");
+		assertThat(paths).containsExactly("/hotels/new", "/hotels/{hotel}");
 		paths.clear();
 
 		paths.add("/hotels/*");
 		paths.add("/hotels/{hotel}");
 		paths.add("/hotels/new");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new");
-		assertThat(paths.get(1)).isEqualTo("/hotels/{hotel}");
-		assertThat(paths.get(2)).isEqualTo("/hotels/*");
+		assertThat(paths).containsExactly("/hotels/new", "/hotels/{hotel}", "/hotels/*");
 		paths.clear();
 
 		paths.add("/hotels/ne*");
 		paths.add("/hotels/n*");
 		Collections.shuffle(paths);
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/ne*");
-		assertThat(paths.get(1)).isEqualTo("/hotels/n*");
+		assertThat(paths).containsExactly("/hotels/ne*", "/hotels/n*");
 		paths.clear();
 
 		comparator = pathMatcher.getPatternComparator("/hotels/new.html");
@@ -588,16 +577,14 @@ class AntPathMatcherTests {
 		paths.add("/hotels/{hotel}");
 		Collections.shuffle(paths);
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/hotels/new.*");
-		assertThat(paths.get(1)).isEqualTo("/hotels/{hotel}");
+		assertThat(paths).containsExactly("/hotels/new.*", "/hotels/{hotel}");
 		paths.clear();
 
 		comparator = pathMatcher.getPatternComparator("/web/endUser/action/login.html");
 		paths.add("/**/login.*");
 		paths.add("/**/endUser/action/login.*");
 		paths.sort(comparator);
-		assertThat(paths.get(0)).isEqualTo("/**/endUser/action/login.*");
-		assertThat(paths.get(1)).isEqualTo("/**/login.*");
+		assertThat(paths).containsExactly("/**/endUser/action/login.*", "/**/login.*");
 		paths.clear();
 	}
 
@@ -622,26 +609,26 @@ class AntPathMatcherTests {
 	@Test
 	void defaultCacheSetting() {
 		match();
-		assertThat(pathMatcher.stringMatcherCache.size() > 20).isTrue();
+		assertThat(pathMatcher.stringMatcherCache).hasSizeGreaterThan(20);
 
 		for (int i = 0; i < 65536; i++) {
 			pathMatcher.match("test" + i, "test");
 		}
 		// Cache turned off because it went beyond the threshold
-		assertThat(pathMatcher.stringMatcherCache.isEmpty()).isTrue();
+		assertThat(pathMatcher.stringMatcherCache).isEmpty();
 	}
 
 	@Test
 	void cachePatternsSetToTrue() {
 		pathMatcher.setCachePatterns(true);
 		match();
-		assertThat(pathMatcher.stringMatcherCache.size() > 20).isTrue();
+		assertThat(pathMatcher.stringMatcherCache).hasSizeGreaterThan(20);
 
 		for (int i = 0; i < 65536; i++) {
 			pathMatcher.match("test" + i, "test" + i);
 		}
 		// Cache keeps being alive due to the explicit cache setting
-		assertThat(pathMatcher.stringMatcherCache.size() > 65536).isTrue();
+		assertThat(pathMatcher.stringMatcherCache).hasSizeGreaterThan(65536);
 	}
 
 	@Test
@@ -680,7 +667,7 @@ class AntPathMatcherTests {
 	void cachePatternsSetToFalse() {
 		pathMatcher.setCachePatterns(false);
 		match();
-		assertThat(pathMatcher.stringMatcherCache.isEmpty()).isTrue();
+		assertThat(pathMatcher.stringMatcherCache).isEmpty();
 	}
 
 	@Test

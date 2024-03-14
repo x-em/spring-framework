@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,13 +95,6 @@ public class MockClientHttpRequest extends AbstractClientHttpRequest implements 
 		return this.httpMethod;
 	}
 
-	@SuppressWarnings("removal")
-	@Override
-	@Deprecated
-	public String getMethodValue() {
-		return this.httpMethod.name();
-	}
-
 	@Override
 	public URI getURI() {
 		return this.url;
@@ -126,6 +119,10 @@ public class MockClientHttpRequest extends AbstractClientHttpRequest implements 
 	protected void applyCookies() {
 		getCookies().values().stream().flatMap(Collection::stream)
 				.forEach(cookie -> getHeaders().add(HttpHeaders.COOKIE, cookie.toString()));
+	}
+
+	@Override
+	protected void applyAttributes() {
 	}
 
 	@Override

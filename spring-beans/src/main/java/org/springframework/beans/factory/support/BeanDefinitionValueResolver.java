@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ public class BeanDefinitionValueResolver {
 					(name, mbd) -> resolveInnerBeanValue(argName, name, mbd));
 		}
 		else if (value instanceof DependencyDescriptor dependencyDescriptor) {
-			Set<String> autowiredBeanNames = new LinkedHashSet<>(4);
+			Set<String> autowiredBeanNames = new LinkedHashSet<>(2);
 			Object result = this.beanFactory.resolveDependency(
 					dependencyDescriptor, this.beanName, autowiredBeanNames, this.typeConverter);
 			for (String autowiredBeanName : autowiredBeanNames) {
@@ -466,7 +466,7 @@ public class BeanDefinitionValueResolver {
 	 * For each element in the managed set, resolve reference if necessary.
 	 */
 	private Set<?> resolveManagedSet(Object argName, Set<?> ms) {
-		Set<Object> resolved = new LinkedHashSet<>(ms.size());
+		Set<Object> resolved = CollectionUtils.newLinkedHashSet(ms.size());
 		int i = 0;
 		for (Object m : ms) {
 			resolved.add(resolveValueIfNecessary(new KeyedArgName(argName, i), m));

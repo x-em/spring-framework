@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
  * @author Chris Beams
  * @author Brian Clozel
  */
-public class ServletContextResourceTests {
+class ServletContextResourceTests {
 
 	private static final String TEST_RESOURCE_PATH = "org/springframework/web/context/support/resource.txt";
 
@@ -48,7 +48,7 @@ public class ServletContextResourceTests {
 		assertThat(resource.exists()).isTrue();
 		assertThat(resource.isFile()).isTrue();
 		assertThat(resource.getFilename()).isEqualTo("resource.txt");
-		assertThat(resource.getURL().getFile().endsWith("resource.txt")).isTrue();
+		assertThat(resource.getURL().getFile()).endsWith("resource.txt");
 	}
 
 	@Test
@@ -56,12 +56,12 @@ public class ServletContextResourceTests {
 		Resource resource = new ServletContextResource(this.servletContext, TEST_RESOURCE_PATH);
 		Resource relative1 = resource.createRelative("relative.txt");
 		assertThat(relative1.getFilename()).isEqualTo("relative.txt");
-		assertThat(relative1.getURL().getFile().endsWith("relative.txt")).isTrue();
+		assertThat(relative1.getURL().getFile()).endsWith("relative.txt");
 		assertThat(relative1.exists()).isTrue();
 
 		Resource relative2 = resource.createRelative("folder/other.txt");
 		assertThat(relative2.getFilename()).isEqualTo("other.txt");
-		assertThat(relative2.getURL().getFile().endsWith("other.txt")).isTrue();
+		assertThat(relative2.getURL().getFile()).endsWith("other.txt");
 		assertThat(relative2.exists()).isTrue();
 	}
 

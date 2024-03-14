@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,8 +141,8 @@ public abstract class RequestMappingInfoHandlerMapping extends AbstractHandlerMe
 		super.handleMatch(info, lookupPath, request);
 
 		RequestCondition<?> condition = info.getActivePatternsCondition();
-		if (condition instanceof PathPatternsRequestCondition) {
-			extractMatchDetails((PathPatternsRequestCondition) condition, lookupPath, request);
+		if (condition instanceof PathPatternsRequestCondition pprc) {
+			extractMatchDetails(pprc, lookupPath, request);
 		}
 		else {
 			extractMatchDetails((PatternsRequestCondition) condition, lookupPath, request);
@@ -512,7 +512,7 @@ public abstract class RequestMappingInfoHandlerMapping extends AbstractHandlerMe
 		}
 
 		private static Set<HttpMethod> initAllowedHttpMethods(Set<String> declaredMethods) {
-			Set<HttpMethod> result = new LinkedHashSet<>(declaredMethods.size());
+			Set<HttpMethod> result = CollectionUtils.newLinkedHashSet(declaredMethods.size());
 			if (declaredMethods.isEmpty()) {
 				for (HttpMethod method : HttpMethod.values()) {
 					if (method != HttpMethod.TRACE) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.core.test.tools;
 
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -155,19 +154,14 @@ public final class SourceFiles implements Iterable<SourceFile> {
 	 * one file
 	 */
 	public SourceFile getSingleFromPackage(String packageName) {
-		return this.files.getSingle(candidate -> Objects.equals(packageName,
-				ClassUtils.getPackageName(candidate.getClassName())));
+		return this.files.getSingle(candidate ->
+				ClassUtils.getPackageName(candidate.getClassName()).equals(packageName));
 	}
 
+
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (obj == null || getClass() != obj.getClass()) {
-			return false;
-		}
-		return this.files.equals(((SourceFiles) obj).files);
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof SourceFiles that && this.files.equals(that.files)));
 	}
 
 	@Override

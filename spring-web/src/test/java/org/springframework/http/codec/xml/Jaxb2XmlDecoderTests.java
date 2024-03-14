@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.events.XMLEvent;
 
+import jakarta.xml.bind.annotation.XmlSeeAlso;
 import org.junit.jupiter.api.Test;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
@@ -35,12 +38,6 @@ import org.springframework.core.codec.DecodingException;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.testfixture.io.buffer.AbstractLeakCheckingTests;
 import org.springframework.http.MediaType;
-import org.springframework.http.codec.xml.jaxb.XmlRootElement;
-import org.springframework.http.codec.xml.jaxb.XmlRootElementWithName;
-import org.springframework.http.codec.xml.jaxb.XmlRootElementWithNameAndNamespace;
-import org.springframework.http.codec.xml.jaxb.XmlType;
-import org.springframework.http.codec.xml.jaxb.XmlTypeWithName;
-import org.springframework.http.codec.xml.jaxb.XmlTypeWithNameAndNamespace;
 import org.springframework.util.MimeType;
 import org.springframework.web.testfixture.xml.Pojo;
 
@@ -49,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * @author Sebastien Deleuze
  */
-public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
+class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 
 	private static final String POJO_ROOT = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
 			"<pojo>" +
@@ -79,7 +76,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 
 
 	@Test
-	public void canDecode() {
+	void canDecode() {
 		assertThat(this.decoder.canDecode(ResolvableType.forClass(Pojo.class),
 				MediaType.APPLICATION_XML)).isTrue();
 		assertThat(this.decoder.canDecode(ResolvableType.forClass(Pojo.class),
@@ -93,9 +90,9 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void splitOneBranches() {
+	void splitOneBranches() {
 		Flux<XMLEvent> xmlEvents = this.xmlEventDecoder.decode(toDataBufferMono(POJO_ROOT), null, null, HINTS);
-		Flux<List<XMLEvent>> result = this.decoder.split(xmlEvents, new QName("pojo"));
+		Flux<List<XMLEvent>> result = Jaxb2Helper.split(xmlEvents, Set.of(new QName("pojo")));
 
 		StepVerifier.create(result)
 				.consumeNextWith(events -> {
@@ -114,9 +111,9 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void splitMultipleBranches() {
+	void splitMultipleBranches() {
 		Flux<XMLEvent> xmlEvents = this.xmlEventDecoder.decode(toDataBufferMono(POJO_CHILD), null, null, HINTS);
-		Flux<List<XMLEvent>> result = this.decoder.split(xmlEvents, new QName("pojo"));
+		Flux<List<XMLEvent>> result = Jaxb2Helper.split(xmlEvents, Set.of(new QName("pojo")));
 
 
 		StepVerifier.create(result)
@@ -162,7 +159,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeSingleXmlRootElement() {
+	void decodeSingleXmlRootElement() {
 		Mono<DataBuffer> source = toDataBufferMono(POJO_ROOT);
 		Mono<Object> output = this.decoder.decodeToMono(source, ResolvableType.forClass(Pojo.class), null, HINTS);
 
@@ -173,7 +170,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeSingleXmlTypeElement() {
+	void decodeSingleXmlTypeElement() {
 		Mono<DataBuffer> source = toDataBufferMono(POJO_ROOT);
 		Mono<Object> output = this.decoder.decodeToMono(source, ResolvableType.forClass(TypePojo.class), null, HINTS);
 
@@ -184,7 +181,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeMultipleXmlRootElement() {
+	void decodeMultipleXmlRootElement() {
 		Mono<DataBuffer> source = toDataBufferMono(POJO_CHILD);
 		Flux<Object> output = this.decoder.decode(source, ResolvableType.forClass(Pojo.class), null, HINTS);
 
@@ -196,7 +193,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeMultipleXmlTypeElement() {
+	void decodeMultipleXmlTypeElement() {
 		Mono<DataBuffer> source = toDataBufferMono(POJO_CHILD);
 		Flux<Object> output = this.decoder.decode(source, ResolvableType.forClass(TypePojo.class), null, HINTS);
 
@@ -208,7 +205,20 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeError() {
+	void decodeXmlSeeAlso() {
+		Mono<DataBuffer> source = toDataBufferMono(POJO_CHILD);
+		Flux<Object> output = this.decoder.decode(source, ResolvableType.forClass(Parent.class), null, HINTS);
+
+		StepVerifier.create(output)
+				.expectNext(new Child("foo", "bar"))
+				.expectNext(new Child("foofoo", "barbar"))
+				.expectComplete()
+				.verify();
+
+	}
+
+	@Test
+	void decodeError() {
 		Flux<DataBuffer> source = Flux.concat(
 				toDataBufferMono("<pojo>"),
 				Flux.error(new RuntimeException()));
@@ -230,7 +240,7 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 	}
 
 	@Test
-	public void decodeNonUtf8() {
+	void decodeNonUtf8() {
 		String xml = "<pojo>" +
 				"<foo>føø</foo>" +
 				"<bar>bär</bar>" +
@@ -251,21 +261,6 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 				.verify();
 	}
 
-	@Test
-	public void toExpectedQName() {
-		assertThat(this.decoder.toQName(Pojo.class)).isEqualTo(new QName("pojo"));
-		assertThat(this.decoder.toQName(TypePojo.class)).isEqualTo(new QName("pojo"));
-
-		assertThat(this.decoder.toQName(XmlRootElementWithNameAndNamespace.class)).isEqualTo(new QName("namespace", "name"));
-		assertThat(this.decoder.toQName(XmlRootElementWithName.class)).isEqualTo(new QName("namespace", "name"));
-		assertThat(this.decoder.toQName(XmlRootElement.class)).isEqualTo(new QName("namespace", "xmlRootElement"));
-
-		assertThat(this.decoder.toQName(XmlTypeWithNameAndNamespace.class)).isEqualTo(new QName("namespace", "name"));
-		assertThat(this.decoder.toQName(XmlTypeWithName.class)).isEqualTo(new QName("namespace", "name"));
-		assertThat(this.decoder.toQName(XmlType.class)).isEqualTo(new QName("namespace", "xmlType"));
-
-	}
-
 	private Mono<DataBuffer> toDataBufferMono(String value) {
 		return Mono.defer(() -> {
 			byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
@@ -275,20 +270,17 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 		});
 	}
 
-
-	@jakarta.xml.bind.annotation.XmlType(name = "pojo")
-	public static class TypePojo {
+	@jakarta.xml.bind.annotation.XmlType
+	@XmlSeeAlso(Child.class)
+	public abstract static class Parent {
 
 		private String foo;
 
-		private String bar;
-
-		public TypePojo() {
+		public Parent() {
 		}
 
-		public TypePojo(String foo, String bar) {
+		public Parent(String foo) {
 			this.foo = foo;
-			this.bar = bar;
 		}
 
 		public String getFoo() {
@@ -297,6 +289,20 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 
 		public void setFoo(String foo) {
 			this.foo = foo;
+		}
+	}
+
+	@jakarta.xml.bind.annotation.XmlRootElement(name = "pojo")
+	public static class Child extends Parent {
+
+		private String bar;
+
+		public Child() {
+		}
+
+		public Child(String foo, String bar) {
+			super(foo);
+			this.bar = bar;
 		}
 
 		public String getBar() {
@@ -312,17 +318,17 @@ public class Jaxb2XmlDecoderTests extends AbstractLeakCheckingTests {
 			if (this == o) {
 				return true;
 			}
-			if (o instanceof TypePojo other) {
-				return this.foo.equals(other.foo) && this.bar.equals(other.bar);
+			if (o instanceof Child other) {
+				return getBar().equals(other.getBar()) &&
+						getFoo().equals(other.getFoo());
 			}
 			return false;
 		}
 
 		@Override
 		public int hashCode() {
-			int result = this.foo.hashCode();
-			result = 31 * result + this.bar.hashCode();
-			return result;
+			return Objects.hash(getBar(), getFoo());
 		}
 	}
+
 }

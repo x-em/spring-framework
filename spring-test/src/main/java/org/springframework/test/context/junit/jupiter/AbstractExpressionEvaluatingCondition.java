@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,18 +79,17 @@ abstract class AbstractExpressionEvaluatingCondition implements ExecutionConditi
 	 * @param loadContextExtractor a function that extracts the {@code loadContext}
 	 * flag from the annotation
 	 * @param enabledOnTrue indicates whether the returned {@code ConditionEvaluationResult}
-	 * should be {@link ConditionEvaluationResult#enabled enabled} if the expression
+	 * should be {@link ConditionEvaluationResult#enabled(String) enabled} if the expression
 	 * evaluates to {@code true}
 	 * @param context the {@code ExtensionContext}
-	 * @return {@link ConditionEvaluationResult#enabled enabled} if the container
-	 * or test should be enabled; otherwise {@link ConditionEvaluationResult#disabled disabled}
+	 * @return {@link ConditionEvaluationResult#enabled(String) enabled} if the container
+	 * or test should be enabled; otherwise {@link ConditionEvaluationResult#disabled(String) disabled}
 	 */
 	protected <A extends Annotation> ConditionEvaluationResult evaluateAnnotation(Class<A> annotationType,
 			Function<A, String> expressionExtractor, Function<A, String> reasonExtractor,
 			Function<A, Boolean> loadContextExtractor, boolean enabledOnTrue, ExtensionContext context) {
 
-		Assert.state(context.getElement().isPresent(), "No AnnotatedElement");
-		AnnotatedElement element = context.getElement().get();
+		AnnotatedElement element = context.getElement().orElseThrow(() -> new IllegalStateException("No AnnotatedElement"));
 		Optional<A> annotation = findMergedAnnotation(element, annotationType);
 
 		if (annotation.isEmpty()) {
@@ -152,8 +151,7 @@ abstract class AbstractExpressionEvaluatingCondition implements ExecutionConditi
 	private <A extends Annotation> boolean evaluateExpression(String expression, boolean loadContext,
 			Class<A> annotationType, ExtensionContext context) {
 
-		Assert.state(context.getElement().isPresent(), "No AnnotatedElement");
-		AnnotatedElement element = context.getElement().get();
+		AnnotatedElement element = context.getElement().orElseThrow(() -> new IllegalStateException("No AnnotatedElement"));
 		GenericApplicationContext gac = null;
 		ApplicationContext applicationContext;
 

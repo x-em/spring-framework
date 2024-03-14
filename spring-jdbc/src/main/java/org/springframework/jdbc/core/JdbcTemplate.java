@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,13 +60,16 @@ import org.springframework.util.LinkedCaseInsensitiveMap;
 import org.springframework.util.StringUtils;
 
 /**
- * <b>This is the central class in the JDBC core package.</b>
- * It simplifies the use of JDBC and helps to avoid common errors.
+ * <b>This is the central delegate in the JDBC core package.</b>
+ * It can be used directly for many data access purposes, supporting any kind
+ * of JDBC operation. For a more focused and convenient facade on top of this,
+ * consider {@link org.springframework.jdbc.core.simple.JdbcClient} as of 6.1.
+ *
+ * <p>This class simplifies the use of JDBC and helps to avoid common errors.
  * It executes core JDBC workflow, leaving application code to provide SQL
  * and extract results. This class executes SQL queries or updates, initiating
  * iteration over ResultSets and catching JDBC exceptions and translating
- * them to the generic, more informative exception hierarchy defined in the
- * {@code org.springframework.dao} package.
+ * them to the common {@code org.springframework.dao} exception hierarchy.
  *
  * <p>Code using this class need only implement callback interfaces, giving
  * them a clearly defined contract. The {@link PreparedStatementCreator} callback
@@ -75,7 +78,8 @@ import org.springframework.util.StringUtils;
  * values from a ResultSet. See also {@link PreparedStatementSetter} and
  * {@link RowMapper} for two popular alternative callback interfaces.
  *
- * <p>Can be used within a service implementation via direct instantiation
+ * <p>An instance of this template class is thread-safe once configured.
+ * Can be used within a service implementation via direct instantiation
  * with a DataSource reference, or get prepared in an application context
  * and given to services as bean reference. Note: The DataSource should
  * always be configured as a bean in the application context, in the first case
@@ -88,12 +92,17 @@ import org.springframework.util.StringUtils;
  * <p>All SQL operations performed by this class are logged at debug level,
  * using "org.springframework.jdbc.core.JdbcTemplate" as log category.
  *
- * <p><b>NOTE: An instance of this class is thread-safe once configured.</b>
+ * <p><b>NOTE: As of 6.1, there is a unified JDBC access facade available in
+ * the form of {@link org.springframework.jdbc.core.simple.JdbcClient}.</b>
+ * {@code JdbcClient} provides a fluent API style for common JDBC queries/updates
+ * with flexible use of indexed or named parameters. It delegates to a
+ * {@code JdbcTemplate}/{@code NamedParameterJdbcTemplate} for actual execution.
  *
  * @author Rod Johnson
  * @author Juergen Hoeller
  * @author Thomas Risberg
  * @since May 3, 2001
+ * @see JdbcOperations
  * @see PreparedStatementCreator
  * @see PreparedStatementSetter
  * @see CallableStatementCreator
@@ -103,6 +112,7 @@ import org.springframework.util.StringUtils;
  * @see RowCallbackHandler
  * @see RowMapper
  * @see org.springframework.jdbc.support.SQLExceptionTranslator
+ * @see org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
  */
 public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 
@@ -187,12 +197,14 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 
 
 	/**
-	 * Set whether we want to ignore SQLWarnings.
-	 * <p>Default is "true", swallowing and logging all warnings. Switch this flag
-	 * to "false" to make the JdbcTemplate throw an SQLWarningException instead.
+	 * Set whether we want to ignore JDBC statement warnings ({@link SQLWarning}).
+	 * <p>Default is {@code true}, swallowing and logging all warnings. Switch this flag to
+	 * {@code false} to make this JdbcTemplate throw a {@link SQLWarningException} instead
+	 * (or chain the {@link SQLWarning} into the primary {@link SQLException}, if any).
+	 * @see Statement#getWarnings()
 	 * @see java.sql.SQLWarning
 	 * @see org.springframework.jdbc.SQLWarningException
-	 * @see #handleWarnings
+	 * @see #handleWarnings(Statement)
 	 */
 	public void setIgnoreWarnings(boolean ignoreWarnings) {
 		this.ignoreWarnings = ignoreWarnings;
@@ -385,6 +397,9 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		catch (SQLException ex) {
 			// Release Connection early, to avoid potential connection pool deadlock
 			// in the case when the exception translator hasn't been initialized yet.
+			if (stmt != null) {
+				handleWarnings(stmt, ex);
+			}
 			String sql = getSql(action);
 			JdbcUtils.closeStatement(stmt);
 			stmt = null;
@@ -412,9 +427,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			logger.debug("Executing SQL statement [" + sql + "]");
 		}
 
-		/**
-		 * Callback to execute the statement.
-		 */
+		// Callback to execute the statement.
 		class ExecuteStatementCallback implements StatementCallback<Object>, SqlProvider {
 			@Override
 			@Nullable
@@ -440,9 +453,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			logger.debug("Executing SQL query [" + sql + "]");
 		}
 
-		/**
-		 * Callback to execute the query.
-		 */
+		// Callback to execute the query.
 		class QueryStatementCallback implements StatementCallback<T>, SqlProvider {
 			@Override
 			@Nullable
@@ -537,9 +548,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			logger.debug("Executing SQL update [" + sql + "]");
 		}
 
-		/**
-		 * Callback to execute the update statement.
-		 */
+		// Callback to execute the update statement.
 		class UpdateStatementCallback implements StatementCallback<Integer>, SqlProvider {
 			@Override
 			public Integer doInStatement(Statement stmt) throws SQLException {
@@ -565,9 +574,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			logger.debug("Executing SQL batch update of " + sql.length + " statements");
 		}
 
-		/**
-		 * Callback to execute the batch update.
-		 */
+		// Callback to execute the batch update.
 		class BatchUpdateStatementCallback implements StatementCallback<int[]>, SqlProvider {
 
 			@Nullable
@@ -658,6 +665,9 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			if (psc instanceof ParameterDisposer parameterDisposer) {
 				parameterDisposer.cleanupParameters();
 			}
+			if (ps != null) {
+				handleWarnings(ps, ex);
+			}
 			String sql = getSql(psc);
 			psc = null;
 			JdbcUtils.closeStatement(ps);
@@ -710,7 +720,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		Assert.notNull(rse, "ResultSetExtractor must not be null");
 		logger.debug("Executing prepared SQL query");
 
-		return execute(psc, new PreparedStatementCallback<T>() {
+		return execute(psc, new PreparedStatementCallback<>() {
 			@Override
 			@Nullable
 			public T doInPreparedStatement(PreparedStatement ps) throws SQLException {
@@ -990,21 +1000,10 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 
 		return updateCount(execute(psc, ps -> {
 			int rows = ps.executeUpdate();
-			List<Map<String, Object>> generatedKeys = generatedKeyHolder.getKeyList();
-			generatedKeys.clear();
-			ResultSet keys = ps.getGeneratedKeys();
-			if (keys != null) {
-				try {
-					RowMapperResultSetExtractor<Map<String, Object>> rse =
-							new RowMapperResultSetExtractor<>(getColumnMapRowMapper(), 1);
-					generatedKeys.addAll(result(rse.extractData(keys)));
-				}
-				finally {
-					JdbcUtils.closeResultSet(keys);
-				}
-			}
+			generatedKeyHolder.getKeyList().clear();
+			storeGeneratedKeys(generatedKeyHolder, ps, 1);
 			if (logger.isTraceEnabled()) {
-				logger.trace("SQL update affected " + rows + " rows and returned " + generatedKeys.size() + " keys");
+				logger.trace("SQL update affected " + rows + " rows and returned " + generatedKeyHolder.getKeyList().size() + " keys");
 			}
 			return rows;
 		}, true));
@@ -1026,49 +1025,26 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	}
 
 	@Override
+	public int[] batchUpdate(final PreparedStatementCreator psc, final BatchPreparedStatementSetter pss,
+			final KeyHolder generatedKeyHolder) throws DataAccessException {
+
+		int[] result = execute(psc, getPreparedStatementCallback(pss, generatedKeyHolder));
+
+		Assert.state(result != null, "No result array");
+		return result;
+	}
+
+	@Override
 	public int[] batchUpdate(String sql, final BatchPreparedStatementSetter pss) throws DataAccessException {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Executing SQL batch update [" + sql + "]");
 		}
+		int batchSize = pss.getBatchSize();
+		if (batchSize == 0) {
+			return new int[0];
+		}
 
-		int[] result = execute(sql, (PreparedStatementCallback<int[]>) ps -> {
-			try {
-				int batchSize = pss.getBatchSize();
-				InterruptibleBatchPreparedStatementSetter ipss =
-						(pss instanceof InterruptibleBatchPreparedStatementSetter ibpss ? ibpss : null);
-				if (JdbcUtils.supportsBatchUpdates(ps.getConnection())) {
-					for (int i = 0; i < batchSize; i++) {
-						pss.setValues(ps, i);
-						if (ipss != null && ipss.isBatchExhausted(i)) {
-							break;
-						}
-						ps.addBatch();
-					}
-					return ps.executeBatch();
-				}
-				else {
-					List<Integer> rowsAffected = new ArrayList<>();
-					for (int i = 0; i < batchSize; i++) {
-						pss.setValues(ps, i);
-						if (ipss != null && ipss.isBatchExhausted(i)) {
-							break;
-						}
-						rowsAffected.add(ps.executeUpdate());
-					}
-					int[] rowsAffectedArray = new int[rowsAffected.size()];
-					for (int i = 0; i < rowsAffectedArray.length; i++) {
-						rowsAffectedArray[i] = rowsAffected.get(i);
-					}
-					return rowsAffectedArray;
-				}
-			}
-			finally {
-				if (pss instanceof ParameterDisposer parameterDisposer) {
-					parameterDisposer.cleanupParameters();
-				}
-			}
-		});
-
+		int[] result = execute(sql, getPreparedStatementCallback(pss, null));
 		Assert.state(result != null, "No result array");
 		return result;
 	}
@@ -1177,7 +1153,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		Assert.notNull(action, "Callback object must not be null");
 		if (logger.isDebugEnabled()) {
 			String sql = getSql(csc);
-			logger.debug("Calling stored procedure" + (sql != null ? " [" + sql  + "]" : ""));
+			logger.debug("Calling stored procedure" + (sql != null ? " [" + sql + "]" : ""));
 		}
 
 		Connection con = DataSourceUtils.getConnection(obtainDataSource());
@@ -1194,6 +1170,9 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			// in the case when the exception translator hasn't been initialized yet.
 			if (csc instanceof ParameterDisposer parameterDisposer) {
 				parameterDisposer.cleanupParameters();
+			}
+			if (cs != null) {
+				handleWarnings(cs, ex);
 			}
 			String sql = getSql(csc);
 			csc = null;
@@ -1362,7 +1341,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 					}
 				}
 			}
-			if (!(param.isResultsParameter())) {
+			if (!param.isResultsParameter()) {
 				sqlColIndex++;
 			}
 		}
@@ -1491,13 +1470,44 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	}
 
 	/**
-	 * Throw an SQLWarningException if we're not ignoring warnings,
-	 * otherwise log the warnings at debug level.
+	 * Handle warnings before propagating a primary {@code SQLException}
+	 * from executing the given statement.
+	 * <p>Calls regular {@link #handleWarnings(Statement)} but catches
+	 * {@link SQLWarningException} in order to chain the {@link SQLWarning}
+	 * into the primary exception instead.
 	 * @param stmt the current JDBC statement
-	 * @throws SQLWarningException if not ignoring warnings
-	 * @see org.springframework.jdbc.SQLWarningException
+	 * @param ex the primary exception after failed statement execution
+	 * @since 5.3.29
+	 * @see #handleWarnings(Statement)
+	 * @see SQLException#setNextException
 	 */
-	protected void handleWarnings(Statement stmt) throws SQLException {
+	protected void handleWarnings(Statement stmt, SQLException ex) {
+		try {
+			handleWarnings(stmt);
+		}
+		catch (SQLWarningException nonIgnoredWarning) {
+			ex.setNextException(nonIgnoredWarning.getSQLWarning());
+		}
+		catch (SQLException warningsEx) {
+			logger.debug("Failed to retrieve warnings", warningsEx);
+		}
+		catch (Throwable warningsEx) {
+			logger.debug("Failed to process warnings", warningsEx);
+		}
+	}
+
+	/**
+	 * Handle the warnings for the given JDBC statement, if any.
+	 * <p>Throws a {@link SQLWarningException} if we're not ignoring warnings,
+	 * otherwise logs the warnings at debug level.
+	 * @param stmt the current JDBC statement
+	 * @throws SQLException in case of warnings retrieval failure
+	 * @throws SQLWarningException for a concrete warning to raise
+	 * (when not ignoring warnings)
+	 * @see #setIgnoreWarnings
+	 * @see #handleWarnings(SQLWarning)
+	 */
+	protected void handleWarnings(Statement stmt) throws SQLException, SQLWarningException {
 		if (isIgnoreWarnings()) {
 			if (logger.isDebugEnabled()) {
 				SQLWarning warningToLog = stmt.getWarnings();
@@ -1514,7 +1524,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	}
 
 	/**
-	 * Throw an SQLWarningException if encountering an actual warning.
+	 * Throw a {@link SQLWarningException} if encountering an actual warning.
 	 * @param warning the warnings object from the current statement.
 	 * May be {@code null}, in which case this method does nothing.
 	 * @throws SQLWarningException in case of an actual warning to be raised
@@ -1561,6 +1571,74 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		return result;
 	}
 
+	private void storeGeneratedKeys(KeyHolder generatedKeyHolder, PreparedStatement ps, int rowsExpected)
+			throws SQLException {
+
+		List<Map<String, Object>> generatedKeys = generatedKeyHolder.getKeyList();
+		ResultSet keys = ps.getGeneratedKeys();
+		if (keys != null) {
+			try {
+				RowMapperResultSetExtractor<Map<String, Object>> rse =
+						new RowMapperResultSetExtractor<>(getColumnMapRowMapper(), rowsExpected);
+				generatedKeys.addAll(result(rse.extractData(keys)));
+			}
+			finally {
+				JdbcUtils.closeResultSet(keys);
+			}
+		}
+	}
+
+	private PreparedStatementCallback<int[]> getPreparedStatementCallback(BatchPreparedStatementSetter pss,
+			@Nullable KeyHolder generatedKeyHolder) {
+		return ps -> {
+			try {
+				int batchSize = pss.getBatchSize();
+				InterruptibleBatchPreparedStatementSetter ipss =
+						(pss instanceof InterruptibleBatchPreparedStatementSetter ibpss ? ibpss : null);
+				if (generatedKeyHolder != null) {
+					generatedKeyHolder.getKeyList().clear();
+				}
+				if (JdbcUtils.supportsBatchUpdates(ps.getConnection())) {
+					for (int i = 0; i < batchSize; i++) {
+						pss.setValues(ps, i);
+						if (ipss != null && ipss.isBatchExhausted(i)) {
+							break;
+						}
+						ps.addBatch();
+					}
+					int[] results = ps.executeBatch();
+					if (generatedKeyHolder != null) {
+						storeGeneratedKeys(generatedKeyHolder, ps, batchSize);
+					}
+					return results;
+				}
+				else {
+					List<Integer> rowsAffected = new ArrayList<>();
+					for (int i = 0; i < batchSize; i++) {
+						pss.setValues(ps, i);
+						if (ipss != null && ipss.isBatchExhausted(i)) {
+							break;
+						}
+						rowsAffected.add(ps.executeUpdate());
+						if (generatedKeyHolder != null) {
+							storeGeneratedKeys(generatedKeyHolder, ps, 1);
+						}
+					}
+					int[] rowsAffectedArray = new int[rowsAffected.size()];
+					for (int i = 0; i < rowsAffectedArray.length; i++) {
+						rowsAffectedArray[i] = rowsAffected.get(i);
+					}
+					return rowsAffectedArray;
+				}
+			}
+			finally {
+				if (pss instanceof ParameterDisposer parameterDisposer) {
+					parameterDisposer.cleanupParameters();
+				}
+			}
+		};
+	}
+
 
 	/**
 	 * Invocation handler that suppresses close calls on JDBC Connections.
@@ -1580,42 +1658,38 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 			// Invocation on ConnectionProxy interface coming in...
 
-			switch (method.getName()) {
-				case "equals":
-					// Only consider equal when proxies are identical.
-					return (proxy == args[0]);
-				case "hashCode":
-					// Use hashCode of PersistenceManager proxy.
-					return System.identityHashCode(proxy);
-				case "close":
-					// Handle close method: suppress, not valid.
-					return null;
-				case "isClosed":
-					return false;
-				case "getTargetConnection":
-					// Handle getTargetConnection method: return underlying Connection.
-					return this.target;
-				case "unwrap":
-					return (((Class<?>) args[0]).isInstance(proxy) ? proxy : this.target.unwrap((Class<?>) args[0]));
-				case "isWrapperFor":
-					return (((Class<?>) args[0]).isInstance(proxy) || this.target.isWrapperFor((Class<?>) args[0]));
-			}
+			return switch (method.getName()) {
+				// Only consider equal when proxies are identical.
+				case "equals" -> (proxy == args[0]);
+				// Use hashCode of Connection proxy.
+				case "hashCode" -> System.identityHashCode(proxy);
+				// Handle close method: suppress, not valid.
+				case "close" -> null;
+				case "isClosed" -> false;
+				// Handle getTargetConnection method: return underlying Connection.
+				case "getTargetConnection" -> this.target;
+				case "unwrap" ->
+						(((Class<?>) args[0]).isInstance(proxy) ? proxy : this.target.unwrap((Class<?>) args[0]));
+				case "isWrapperFor" ->
+						(((Class<?>) args[0]).isInstance(proxy) || this.target.isWrapperFor((Class<?>) args[0]));
+				default -> {
+					try {
+						// Invoke method on target Connection.
+						Object retVal = method.invoke(this.target, args);
 
-			// Invoke method on target Connection.
-			try {
-				Object retVal = method.invoke(this.target, args);
+						// If return value is a JDBC Statement, apply statement settings
+						// (fetch size, max rows, transaction timeout).
+						if (retVal instanceof Statement statement) {
+							applyStatementSettings(statement);
+						}
 
-				// If return value is a JDBC Statement, apply statement settings
-				// (fetch size, max rows, transaction timeout).
-				if (retVal instanceof Statement statement) {
-					applyStatementSettings(statement);
+						yield retVal;
+					}
+					catch (InvocationTargetException ex) {
+						throw ex.getTargetException();
+					}
 				}
-
-				return retVal;
-			}
-			catch (InvocationTargetException ex) {
-				throw ex.getTargetException();
-			}
+			};
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -51,8 +52,6 @@ import org.springframework.util.ObjectUtils;
  */
 @SuppressWarnings("serial")
 public class TypeDescriptor implements Serializable {
-
-	private static final Annotation[] EMPTY_ANNOTATION_ARRAY = new Annotation[0];
 
 	private static final Map<Class<?>, TypeDescriptor> commonTypesCache = new HashMap<>(32);
 
@@ -84,7 +83,7 @@ public class TypeDescriptor implements Serializable {
 	public TypeDescriptor(MethodParameter methodParameter) {
 		this.resolvableType = ResolvableType.forMethodParameter(methodParameter);
 		this.type = this.resolvableType.resolve(methodParameter.getNestedParameterType());
-		this.annotatedElement = new AnnotatedElementAdapter(methodParameter.getParameterIndex() == -1 ?
+		this.annotatedElement = AnnotatedElementAdapter.from(methodParameter.getParameterIndex() == -1 ?
 				methodParameter.getMethodAnnotations() : methodParameter.getParameterAnnotations());
 	}
 
@@ -96,7 +95,7 @@ public class TypeDescriptor implements Serializable {
 	public TypeDescriptor(Field field) {
 		this.resolvableType = ResolvableType.forField(field);
 		this.type = this.resolvableType.resolve(field.getType());
-		this.annotatedElement = new AnnotatedElementAdapter(field.getAnnotations());
+		this.annotatedElement = AnnotatedElementAdapter.from(field.getAnnotations());
 	}
 
 	/**
@@ -109,7 +108,7 @@ public class TypeDescriptor implements Serializable {
 		Assert.notNull(property, "Property must not be null");
 		this.resolvableType = ResolvableType.forMethodParameter(property.getMethodParameter());
 		this.type = this.resolvableType.resolve(property.getType());
-		this.annotatedElement = new AnnotatedElementAdapter(property.getAnnotations());
+		this.annotatedElement = AnnotatedElementAdapter.from(property.getAnnotations());
 	}
 
 	/**
@@ -125,7 +124,7 @@ public class TypeDescriptor implements Serializable {
 	public TypeDescriptor(ResolvableType resolvableType, @Nullable Class<?> type, @Nullable Annotation[] annotations) {
 		this.resolvableType = resolvableType;
 		this.type = (type != null ? type : resolvableType.toClass());
-		this.annotatedElement = new AnnotatedElementAdapter(annotations);
+		this.annotatedElement = AnnotatedElementAdapter.from(annotations);
 	}
 
 
@@ -168,6 +167,33 @@ public class TypeDescriptor implements Serializable {
 	 */
 	public Object getSource() {
 		return this.resolvableType.getSource();
+	}
+
+
+	/**
+	 * Create a type descriptor for a nested type declared within this descriptor.
+	 * @param nestingLevel the nesting level of the collection/array element or
+	 * map key/value declaration within the property
+	 * @return the nested type descriptor at the specified nesting level, or
+	 * {@code null} if it could not be obtained
+	 * @since 6.1
+	 */
+	@Nullable
+	public TypeDescriptor nested(int nestingLevel) {
+		ResolvableType nested = this.resolvableType;
+		for (int i = 0; i < nestingLevel; i++) {
+			if (Object.class == nested.getType()) {
+				// Could be a collection type but we don't know about its element type,
+				// so let's just assume there is an element type of type Object...
+			}
+			else {
+				nested = nested.getNested(2);
+			}
+		}
+		if (nested == ResolvableType.NONE) {
+			return null;
+		}
+		return getRelatedIfResolvable(nested);
 	}
 
 	/**
@@ -335,9 +361,9 @@ public class TypeDescriptor implements Serializable {
 			return new TypeDescriptor(getResolvableType().getComponentType(), null, getAnnotations());
 		}
 		if (Stream.class.isAssignableFrom(getType())) {
-			return getRelatedIfResolvable(this, getResolvableType().as(Stream.class).getGeneric(0));
+			return getRelatedIfResolvable(getResolvableType().as(Stream.class).getGeneric(0));
 		}
-		return getRelatedIfResolvable(this, getResolvableType().asCollection().getGeneric(0));
+		return getRelatedIfResolvable(getResolvableType().asCollection().getGeneric(0));
 	}
 
 	/**
@@ -380,7 +406,7 @@ public class TypeDescriptor implements Serializable {
 	@Nullable
 	public TypeDescriptor getMapKeyTypeDescriptor() {
 		Assert.state(isMap(), "Not a [java.util.Map]");
-		return getRelatedIfResolvable(this, getResolvableType().asMap().getGeneric(0));
+		return getRelatedIfResolvable(getResolvableType().asMap().getGeneric(0));
 	}
 
 	/**
@@ -417,7 +443,7 @@ public class TypeDescriptor implements Serializable {
 	@Nullable
 	public TypeDescriptor getMapValueTypeDescriptor() {
 		Assert.state(isMap(), "Not a [java.util.Map]");
-		return getRelatedIfResolvable(this, getResolvableType().asMap().getGeneric(1));
+		return getRelatedIfResolvable(getResolvableType().asMap().getGeneric(1));
 	}
 
 	/**
@@ -440,6 +466,14 @@ public class TypeDescriptor implements Serializable {
 	@Nullable
 	public TypeDescriptor getMapValueTypeDescriptor(Object mapValue) {
 		return narrow(mapValue, getMapValueTypeDescriptor());
+	}
+
+	@Nullable
+	private TypeDescriptor getRelatedIfResolvable(ResolvableType type) {
+		if (type.resolve() == null) {
+			return null;
+		}
+		return new TypeDescriptor(type, null, getAnnotations());
 	}
 
 	@Nullable
@@ -475,7 +509,7 @@ public class TypeDescriptor implements Serializable {
 					ObjectUtils.nullSafeEquals(getMapValueTypeDescriptor(), otherDesc.getMapValueTypeDescriptor()));
 		}
 		else {
-			return true;
+			return Arrays.equals(getResolvableType().getGenerics(), otherDesc.getResolvableType().getGenerics());
 		}
 	}
 
@@ -512,17 +546,21 @@ public class TypeDescriptor implements Serializable {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		for (Annotation ann : getAnnotations()) {
-			builder.append('@').append(ann.annotationType().getName()).append(' ');
+			builder.append('@').append(getName(ann.annotationType())).append(' ');
 		}
 		builder.append(getResolvableType());
 		return builder.toString();
 	}
 
+	private static String getName(Class<?> clazz) {
+		String canonicalName = clazz.getCanonicalName();
+		return (canonicalName != null ? canonicalName : clazz.getName());
+	}
 
 	/**
 	 * Create a new type descriptor for an object.
 	 * <p>Use this factory method to introspect a source object before asking the
-	 * conversion system to convert it to some another type.
+	 * conversion system to convert it to some other type.
 	 * <p>If the provided object is {@code null}, returns {@code null}, else calls
 	 * {@link #valueOf(Class)} to build a TypeDescriptor from the object's class.
 	 * @param source the source object
@@ -645,7 +683,7 @@ public class TypeDescriptor implements Serializable {
 			throw new IllegalArgumentException("MethodParameter nesting level must be 1: " +
 					"use the nestingLevel parameter to specify the desired nestingLevel for nested type traversal");
 		}
-		return nested(new TypeDescriptor(methodParameter), nestingLevel);
+		return new TypeDescriptor(methodParameter).nested(nestingLevel);
 	}
 
 	/**
@@ -671,7 +709,7 @@ public class TypeDescriptor implements Serializable {
 	 */
 	@Nullable
 	public static TypeDescriptor nested(Field field, int nestingLevel) {
-		return nested(new TypeDescriptor(field), nestingLevel);
+		return new TypeDescriptor(field).nested(nestingLevel);
 	}
 
 	/**
@@ -697,33 +735,7 @@ public class TypeDescriptor implements Serializable {
 	 */
 	@Nullable
 	public static TypeDescriptor nested(Property property, int nestingLevel) {
-		return nested(new TypeDescriptor(property), nestingLevel);
-	}
-
-	@Nullable
-	private static TypeDescriptor nested(TypeDescriptor typeDescriptor, int nestingLevel) {
-		ResolvableType nested = typeDescriptor.resolvableType;
-		for (int i = 0; i < nestingLevel; i++) {
-			if (Object.class == nested.getType()) {
-				// Could be a collection type but we don't know about its element type,
-				// so let's just assume there is an element type of type Object...
-			}
-			else {
-				nested = nested.getNested(2);
-			}
-		}
-		if (nested == ResolvableType.NONE) {
-			return null;
-		}
-		return getRelatedIfResolvable(typeDescriptor, nested);
-	}
-
-	@Nullable
-	private static TypeDescriptor getRelatedIfResolvable(TypeDescriptor source, ResolvableType type) {
-		if (type.resolve() == null) {
-			return null;
-		}
-		return new TypeDescriptor(type, null, source.getAnnotations());
+		return new TypeDescriptor(property).nested(nestingLevel);
 	}
 
 
@@ -733,13 +745,21 @@ public class TypeDescriptor implements Serializable {
 	 * @see AnnotatedElementUtils#isAnnotated(AnnotatedElement, Class)
 	 * @see AnnotatedElementUtils#getMergedAnnotation(AnnotatedElement, Class)
 	 */
-	private class AnnotatedElementAdapter implements AnnotatedElement, Serializable {
+	private static final class AnnotatedElementAdapter implements AnnotatedElement, Serializable {
 
-		@Nullable
+		private static final AnnotatedElementAdapter EMPTY = new AnnotatedElementAdapter(new Annotation[0]);
+
 		private final Annotation[] annotations;
 
-		public AnnotatedElementAdapter(@Nullable Annotation[] annotations) {
+		private AnnotatedElementAdapter(@NonNull Annotation[] annotations) {
 			this.annotations = annotations;
+		}
+
+		private static AnnotatedElementAdapter from(@Nullable Annotation[] annotations) {
+			if (annotations == null || annotations.length == 0) {
+				return EMPTY;
+			}
+			return new AnnotatedElementAdapter(annotations);
 		}
 
 		@Override
@@ -766,7 +786,7 @@ public class TypeDescriptor implements Serializable {
 
 		@Override
 		public Annotation[] getAnnotations() {
-			return (this.annotations != null ? this.annotations.clone() : EMPTY_ANNOTATION_ARRAY);
+			return (isEmpty() ? this.annotations : this.annotations.clone());
 		}
 
 		@Override
@@ -775,13 +795,13 @@ public class TypeDescriptor implements Serializable {
 		}
 
 		public boolean isEmpty() {
-			return ObjectUtils.isEmpty(this.annotations);
+			return (this.annotations.length == 0);
 		}
 
 		@Override
 		public boolean equals(@Nullable Object other) {
-			return (this == other || (other instanceof AnnotatedElementAdapter &&
-					Arrays.equals(this.annotations, ((AnnotatedElementAdapter) other).annotations)));
+			return (this == other || (other instanceof AnnotatedElementAdapter that &&
+					Arrays.equals(this.annotations, that.annotations)));
 		}
 
 		@Override
@@ -791,7 +811,7 @@ public class TypeDescriptor implements Serializable {
 
 		@Override
 		public String toString() {
-			return TypeDescriptor.this.toString();
+			return "AnnotatedElementAdapter annotations=" + Arrays.toString(this.annotations);
 		}
 	}
 

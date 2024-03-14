@@ -86,8 +86,7 @@ public class SpringBeanJobFactory extends AdaptableJobFactory
 	@Override
 	protected Object createJobInstance(TriggerFiredBundle bundle) throws Exception {
 		Object job = (this.applicationContext != null ?
-				this.applicationContext.getAutowireCapableBeanFactory().createBean(
-						bundle.getJobDetail().getJobClass()) :
+				this.applicationContext.getAutowireCapableBeanFactory().createBean(bundle.getJobDetail().getJobClass()) :
 				super.createJobInstance(bundle));
 
 		if (isEligibleForPropertyPopulation(job)) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,12 +34,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -441,7 +441,15 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 	 */
 	public HttpHeaders(MultiValueMap<String, String> headers) {
 		Assert.notNull(headers, "MultiValueMap must not be null");
-		this.headers = headers;
+		if (headers == EMPTY) {
+			this.headers = CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH));
+		}
+		else if (headers instanceof ReadOnlyHttpHeaders readOnlyHttpHeaders) {
+			this.headers = readOnlyHttpHeaders.headers;
+		}
+		else {
+			this.headers = headers;
+		}
 	}
 
 
@@ -526,10 +534,14 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 		if (ranges.isEmpty()) {
 			return Collections.emptyList();
 		}
-		return ranges.stream()
-				.map(range -> Locale.forLanguageTag(range.getRange()))
-				.filter(locale -> StringUtils.hasText(locale.getDisplayName()))
-				.toList();
+
+		List<Locale> locales = new ArrayList<>(ranges.size());
+		for (Locale.LanguageRange range : ranges) {
+			if (!range.getRange().startsWith("*")) {
+				locales.add(Locale.forLanguageTag(range.getRange()));
+			}
+		}
+		return locales;
 	}
 
 	/**
@@ -593,7 +605,7 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 		String value = getFirst(ACCESS_CONTROL_ALLOW_METHODS);
 		if (value != null) {
 			String[] tokens = StringUtils.tokenizeToStringArray(value, ",");
-			List<HttpMethod> result = new ArrayList<>();
+			List<HttpMethod> result = new ArrayList<>(tokens.length);
 			for (String token : tokens) {
 				HttpMethod method = HttpMethod.valueOf(token);
 				result.add(method);
@@ -751,7 +763,7 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 		String value = getFirst(ALLOW);
 		if (StringUtils.hasLength(value)) {
 			String[] tokens = StringUtils.tokenizeToStringArray(value, ",");
-			Set<HttpMethod> result = new LinkedHashSet<>(tokens.length);
+			Set<HttpMethod> result = CollectionUtils.newLinkedHashSet(tokens.length);
 			for (String token : tokens) {
 				HttpMethod method = HttpMethod.valueOf(token);
 				result.add(method);
@@ -1821,23 +1833,20 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 		return this.headers.entrySet();
 	}
 
-
 	@Override
-	public boolean equals(@Nullable Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (!(obj instanceof HttpHeaders other)) {
-			return false;
-		}
-		return unwrap(this).equals(unwrap(other));
+	public void forEach(BiConsumer<? super String, ? super List<String>> action) {
+		this.headers.forEach(action);
 	}
 
-	private static MultiValueMap<String, String> unwrap(HttpHeaders headers) {
-		while (headers.headers instanceof HttpHeaders httpHeaders) {
-			headers = httpHeaders;
-		}
-		return headers.headers;
+	@Override
+	public List<String> putIfAbsent(String key, List<String> value) {
+		return this.headers.putIfAbsent(key, value);
+	}
+
+
+	@Override
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof HttpHeaders that && unwrap(this).equals(unwrap(that))));
 	}
 
 	@Override
@@ -1868,7 +1877,7 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 	 * Apply a read-only {@code HttpHeaders} wrapper around the given headers, if necessary.
 	 * <p>Also caches the parsed representations of the "Accept" and "Content-Type" headers.
 	 * @param headers the headers to expose
-	 * @return a read-only variant of the headers, or the original headers as-is
+	 * @return a read-only variant of the headers, or the original headers as-is if already read-only
 	 */
 	public static HttpHeaders readOnlyHttpHeaders(HttpHeaders headers) {
 		Assert.notNull(headers, "HttpHeaders must not be null");
@@ -1878,16 +1887,16 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 	/**
 	 * Remove any read-only wrapper that may have been previously applied around
 	 * the given headers via {@link #readOnlyHttpHeaders(HttpHeaders)}.
+	 * <p>Once the writable instance is mutated, the read-only instance is likely
+	 * to be out of sync and should be discarded.
 	 * @param headers the headers to expose
 	 * @return a writable variant of the headers, or the original headers as-is
 	 * @since 5.1.1
+	 * @deprecated as of 6.2 in favor of {@link #HttpHeaders(MultiValueMap)}.
 	 */
+	@Deprecated(since = "6.2", forRemoval = true)
 	public static HttpHeaders writableHttpHeaders(HttpHeaders headers) {
-		Assert.notNull(headers, "HttpHeaders must not be null");
-		if (headers == EMPTY) {
-			return new HttpHeaders();
-		}
-		return (headers instanceof ReadOnlyHttpHeaders ? new HttpHeaders(headers.headers) : headers);
+		return new HttpHeaders(headers);
 	}
 
 	/**
@@ -1942,6 +1951,14 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 		String credentialsString = username + ":" + password;
 		byte[] encodedBytes = Base64.getEncoder().encode(credentialsString.getBytes(charset));
 		return new String(encodedBytes, charset);
+	}
+
+
+	private static MultiValueMap<String, String> unwrap(HttpHeaders headers) {
+		while (headers.headers instanceof HttpHeaders httpHeaders) {
+			headers = httpHeaders;
+		}
+		return headers.headers;
 	}
 
 	// Package-private: used in ResponseCookie

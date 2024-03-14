@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,25 +91,20 @@ final class MethodName {
 
 
 	@Override
-	public int hashCode() {
-		return this.value.hashCode();
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof MethodName that && this.value.equals(that.value)));
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if ((obj == null) || (getClass() != obj.getClass())) {
-			return false;
-		}
-		return this.value.equals(((MethodName) obj).value);
+	public int hashCode() {
+		return this.value.hashCode();
 	}
 
 	@Override
 	public String toString() {
 		return (!StringUtils.hasLength(this.value)) ? "$$aot" : this.value ;
 	}
+
 
 	private static String join(String[] parts) {
 		return StringUtils.uncapitalize(Arrays.stream(parts).map(MethodName::clean)
@@ -121,7 +116,7 @@ final class MethodName {
 		StringBuilder name = new StringBuilder(chars.length);
 		boolean uppercase = false;
 		for (char ch : chars) {
-			char outputChar = (!uppercase) ? ch : Character.toUpperCase(ch);
+			char outputChar = (!uppercase ? ch : Character.toUpperCase(ch));
 			name.append((!Character.isLetter(ch)) ? "" : outputChar);
 			uppercase = (ch == '.');
 		}

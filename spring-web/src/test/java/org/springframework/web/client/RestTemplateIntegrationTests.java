@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,9 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.springframework.http.client.OkHttp3ClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.client.JettyClientHttpRequestFactory;
+import org.springframework.http.client.ReactorNettyClientRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJacksonValue;
@@ -88,12 +90,15 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	@interface ParameterizedRestTemplateTest {
 	}
 
-	@SuppressWarnings("deprecation")
+	@SuppressWarnings("removal")
 	static Stream<Named<ClientHttpRequestFactory>> clientHttpRequestFactories() {
 		return Stream.of(
-			named("JDK", new SimpleClientHttpRequestFactory()),
+			named("JDK HttpURLConnection", new SimpleClientHttpRequestFactory()),
 			named("HttpComponents", new HttpComponentsClientHttpRequestFactory()),
-			named("OkHttp", new OkHttp3ClientHttpRequestFactory())
+			named("OkHttp", new org.springframework.http.client.OkHttp3ClientHttpRequestFactory()),
+			named("Jetty", new JettyClientHttpRequestFactory()),
+			named("JDK HttpClient", new JdkClientHttpRequestFactory()),
+			named("Reactor Netty", new ReactorNettyClientRequestFactory())
 		);
 	}
 
@@ -163,11 +168,11 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void getNoContentTypeHeader(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void getNoContentTypeHeader(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		byte[] bytes = template.getForObject(baseUrl + "/get/nocontenttype", byte[].class);
-		assertThat(bytes).as("Invalid content").isEqualTo(helloWorld.getBytes("UTF-8"));
+		assertThat(bytes).as("Invalid content").isEqualTo(helloWorld.getBytes(StandardCharsets.UTF_8));
 	}
 
 	@ParameterizedRestTemplateTest
@@ -195,7 +200,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void postForLocation(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void postForLocation(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		URI location = template.postForLocation(baseUrl + "/{method}", helloWorld, "post");
@@ -203,7 +208,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void postForLocationEntity(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void postForLocationEntity(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders entityHeaders = new HttpHeaders();
@@ -214,7 +219,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void postForObject(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void postForObject(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		String s = template.postForObject(baseUrl + "/{method}", helloWorld, String.class, "post");
@@ -222,9 +227,9 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void patchForObject(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void patchForObject(ClientHttpRequestFactory clientHttpRequestFactory) {
 		assumeFalse(clientHttpRequestFactory instanceof SimpleClientHttpRequestFactory,
-				"JDK client does not support the PATCH method");
+				"HttpURLConnection does not support the PATCH method");
 
 		setUpClient(clientHttpRequestFactory);
 
@@ -253,6 +258,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 				template.execute(baseUrl + "/status/badrequest", HttpMethod.GET, null, null))
 			.satisfies(ex -> {
 				assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assumeFalse(clientHttpRequestFactory instanceof JdkClientHttpRequestFactory, "JDK HttpClient does not expose status text");
 				assertThat(ex.getMessage()).isEqualTo("400 Client Error: [no body]");
 			});
 	}
@@ -271,7 +277,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void optionsForAllow(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void optionsForAllow(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		Set<HttpMethod> allowed = template.optionsForAllow(URI.create(baseUrl + "/get"));
@@ -279,7 +285,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void uri(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void uri(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		String result = template.getForObject(baseUrl + "/uri/{query}", String.class, "Z\u00fcrich");
@@ -300,7 +306,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void multipartMixed(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void multipartMixed(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders requestHeaders = new HttpHeaders();
@@ -351,7 +357,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void exchangeGet(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void exchangeGet(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders requestHeaders = new HttpHeaders();
@@ -363,7 +369,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void exchangePost(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void exchangePost(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders requestHeaders = new HttpHeaders();
@@ -376,7 +382,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void jsonPostForObject(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void jsonPostForObject(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders entityHeaders = new HttpHeaders();
@@ -387,13 +393,13 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 		bean.setWithout("without");
 		HttpEntity<MySampleBean> entity = new HttpEntity<>(bean, entityHeaders);
 		String s = template.postForObject(baseUrl + "/jsonpost", entity, String.class);
-		assertThat(s.contains("\"with1\":\"with\"")).isTrue();
-		assertThat(s.contains("\"with2\":\"with\"")).isTrue();
-		assertThat(s.contains("\"without\":\"without\"")).isTrue();
+		assertThat(s).contains("\"with1\":\"with\"");
+		assertThat(s).contains("\"with2\":\"with\"");
+		assertThat(s).contains("\"without\":\"without\"");
 	}
 
 	@ParameterizedRestTemplateTest
-	void jsonPostForObjectWithJacksonView(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void jsonPostForObjectWithJacksonView(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders entityHeaders = new HttpHeaders();
@@ -403,9 +409,9 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 		jacksonValue.setSerializationView(MyJacksonView1.class);
 		HttpEntity<MappingJacksonValue> entity = new HttpEntity<>(jacksonValue, entityHeaders);
 		String s = template.postForObject(baseUrl + "/jsonpost", entity, String.class);
-		assertThat(s.contains("\"with1\":\"with\"")).isTrue();
-		assertThat(s.contains("\"with2\":\"with\"")).isFalse();
-		assertThat(s.contains("\"without\":\"without\"")).isFalse();
+		assertThat(s).contains("\"with1\":\"with\"");
+		assertThat(s).doesNotContain("\"with2\":\"with\"");
+		assertThat(s).doesNotContain("\"without\":\"without\"");
 	}
 
 	@ParameterizedRestTemplateTest  // SPR-12123
@@ -417,7 +423,7 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest  // SPR-13154
-	void jsonPostForObjectWithJacksonTypeInfoList(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void jsonPostForObjectWithJacksonTypeInfoList(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		List<ParentClass> list = new ArrayList<>();
@@ -429,12 +435,12 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 				.contentType(new MediaType("application", "json", StandardCharsets.UTF_8))
 				.body(list, typeReference.getType());
 		String content = template.exchange(entity, String.class).getBody();
-		assertThat(content.contains("\"type\":\"foo\"")).isTrue();
-		assertThat(content.contains("\"type\":\"bar\"")).isTrue();
+		assertThat(content).contains("\"type\":\"foo\"");
+		assertThat(content).contains("\"type\":\"bar\"");
 	}
 
 	@ParameterizedRestTemplateTest  // SPR-15015
-	void postWithoutBody(ClientHttpRequestFactory clientHttpRequestFactory) throws Exception {
+	void postWithoutBody(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		assertThat(template.postForObject(baseUrl + "/jsonpost", null, String.class)).isNull();

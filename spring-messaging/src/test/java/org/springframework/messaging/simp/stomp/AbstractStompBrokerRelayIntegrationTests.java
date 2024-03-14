@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 
 
 	@BeforeEach
-	public void setup(TestInfo testInfo) throws Exception {
+	void setup(TestInfo testInfo) throws Exception {
 		logger.debug("Setting up before '" + testInfo.getTestMethod().get().getName() + "'");
 
 		this.responseChannel = new ExecutorSubscribableChannel();
@@ -130,7 +130,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 	protected abstract TcpOperations<byte[]> initTcpClient(int port);
 
 	@AfterEach
-	public void stop() throws Exception {
+	void stop() throws Exception {
 		try {
 			logger.debug("STOMP broker relay stats: " + this.relay.getStatsInfo());
 			this.relay.stop();
@@ -155,7 +155,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 
 
 	@Test
-	public void publishSubscribe() throws Exception {
+	void publishSubscribe() throws Exception {
 		logger.debug("Starting test publishSubscribe()");
 
 		String sess1 = "sess1";
@@ -179,7 +179,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 	}
 
 	@Test
-	public void messageDeliveryExceptionIfSystemSessionForwardFails() throws Exception {
+	void messageDeliveryExceptionIfSystemSessionForwardFails() throws Exception {
 		logger.debug("Starting test messageDeliveryExceptionIfSystemSessionForwardFails()");
 
 		stopActiveMqBrokerAndAwait();
@@ -191,7 +191,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 	}
 
 	@Test
-	public void brokerBecomingUnavailableTriggersErrorFrame() throws Exception {
+	void brokerBecomingUnavailableTriggersErrorFrame() throws Exception {
 		logger.debug("Starting test brokerBecomingUnavailableTriggersErrorFrame()");
 
 		String sess1 = "sess1";
@@ -206,7 +206,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 	}
 
 	@Test
-	public void brokerAvailabilityEventWhenStopped() throws Exception {
+	void brokerAvailabilityEventWhenStopped() throws Exception {
 		logger.debug("Starting test brokerAvailabilityEventWhenStopped()");
 
 		stopActiveMqBrokerAndAwait();
@@ -214,7 +214,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 	}
 
 	@Test
-	public void relayReconnectsIfBrokerComesBackUp() throws Exception {
+	void relayReconnectsIfBrokerComesBackUp() throws Exception {
 		logger.debug("Starting test relayReconnectsIfBrokerComesBackUp()");
 
 		String sess1 = "sess1";
@@ -228,18 +228,19 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 		this.relay.handleMessage(subscribe.message);
 		this.responseHandler.expectMessages(subscribe);
 
-		MessageExchange error = MessageExchangeBuilder.error(sess1).build();
 		stopActiveMqBrokerAndAwait();
-		this.responseHandler.expectMessages(error);
 
+		MessageExchange error = MessageExchangeBuilder.error(sess1).build();
+		this.responseHandler.expectMessages(error);
 		this.eventPublisher.expectBrokerAvailabilityEvent(false);
 
 		startActiveMQBroker();
+
 		this.eventPublisher.expectBrokerAvailabilityEvent(true);
 	}
 
 	@Test
-	public void disconnectWithReceipt() throws Exception {
+	void disconnectWithReceipt() throws Exception {
 		logger.debug("Starting test disconnectWithReceipt()");
 
 		MessageExchange connect = MessageExchangeBuilder.connect("sess1").build();
@@ -272,7 +273,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 
 		public void expectBrokerAvailabilityEvent(boolean isBrokerAvailable) throws InterruptedException {
 			BrokerAvailabilityEvent event = this.eventQueue.poll(20000, TimeUnit.MILLISECONDS);
-			assertThat(event).as("Times out waiting for BrokerAvailabilityEvent[" + isBrokerAvailable + "]").isNotNull();
+			assertThat(event).as("Timed out waiting for BrokerAvailabilityEvent[" + isBrokerAvailable + "]").isNotNull();
 			assertThat(event.isBrokerAvailable()).isEqualTo(isBrokerAvailable);
 		}
 	}
@@ -442,7 +443,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 		}
 
 		public MessageExchange build() {
-			return new MessageExchange(this.message, this.expected.toArray(new MessageMatcher[this.expected.size()]));
+			return new MessageExchange(this.message, this.expected.toArray(new MessageMatcher[0]));
 		}
 	}
 
@@ -479,7 +480,7 @@ public abstract class AbstractStompBrokerRelayIntegrationTests {
 
 		@Override
 		public String toString() {
-			return "command=" + this.command  + ", session=\"" + this.sessionId + "\"";
+			return "command=" + this.command + ", session=\"" + this.sessionId + "\"";
 		}
 	}
 

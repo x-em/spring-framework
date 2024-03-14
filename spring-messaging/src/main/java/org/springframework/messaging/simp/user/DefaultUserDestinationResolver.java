@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.springframework.messaging.simp.SimpLogging;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.util.Assert;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -130,18 +131,18 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 			return null;
 		}
 		String user = parseResult.getUser();
-		String sourceDestination = parseResult.getSourceDestination();
+		String sourceDest = parseResult.getSourceDestination();
+		Set<String> sessionIds = parseResult.getSessionIds();
 		Set<String> targetSet = new HashSet<>();
-		for (String sessionId : parseResult.getSessionIds()) {
-			String actualDestination = parseResult.getActualDestination();
-			String targetDestination = getTargetDestination(
-					sourceDestination, actualDestination, sessionId, user);
-			if (targetDestination != null) {
-				targetSet.add(targetDestination);
+		for (String sessionId : sessionIds) {
+			String actualDest = parseResult.getActualDestination();
+			String targetDest = getTargetDestination(sourceDest, actualDest, sessionId, user);
+			if (targetDest != null) {
+				targetSet.add(targetDest);
 			}
 		}
-		String subscribeDestination = parseResult.getSubscribeDestination();
-		return new UserDestinationResult(sourceDestination, targetSet, subscribeDestination, user);
+		String subscribeDest = parseResult.getSubscribeDestination();
+		return new UserDestinationResult(sourceDest, targetSet, subscribeDest, user, sessionIds);
 	}
 
 	@Nullable
@@ -153,13 +154,11 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 		}
 		SimpMessageType messageType = SimpMessageHeaderAccessor.getMessageType(headers);
 		if (messageType != null) {
-			switch (messageType) {
-				case SUBSCRIBE:
-				case UNSUBSCRIBE:
-					return parseSubscriptionMessage(message, sourceDestination);
-				case MESSAGE:
-					return parseMessage(headers, sourceDestination);
-			}
+			return switch (messageType) {
+				case SUBSCRIBE, UNSUBSCRIBE -> parseSubscriptionMessage(message, sourceDestination);
+				case MESSAGE -> parseMessage(headers, sourceDestination);
+				default -> null;
+			};
 		}
 		return null;
 	}
@@ -218,7 +217,7 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 			}
 			else {
 				Set<SimpSession> sessions = user.getSessions();
-				sessionIds = new HashSet<>(sessions.size());
+				sessionIds = CollectionUtils.newHashSet(sessions.size());
 				for (SimpSession session : sessions) {
 					sessionIds.add(session.getId());
 				}
@@ -283,22 +282,37 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 			this.user = user;
 		}
 
+		/**
+		 * The destination from the source message, e.g. "/user/{user}/queue/position-updates".
+		 */
 		public String getSourceDestination() {
 			return this.sourceDestination;
 		}
 
+		/**
+		 * The actual destination, without any user prefix, e.g. "/queue/position-updates".
+		 */
 		public String getActualDestination() {
 			return this.actualDestination;
 		}
 
+		/**
+		 * The user destination as it would be on a subscription, "/user/queue/position-updates".
+		 */
 		public String getSubscribeDestination() {
 			return this.subscribeDestination;
 		}
 
+		/**
+		 * The session id or id's for the user.
+		 */
 		public Set<String> getSessionIds() {
 			return this.sessionIds;
 		}
 
+		/**
+		 * The name of the user associated with the session.
+		 */
 		@Nullable
 		public String getUser() {
 			return this.user;

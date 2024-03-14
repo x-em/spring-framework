@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ import static org.springframework.core.io.buffer.DataBufferUtils.release;
 /**
  * @author Arjen Poutsma
  */
-class DefaultPartHttpMessageReaderTests  {
+class DefaultPartHttpMessageReaderTests {
 
 	private static final String LOREM_IPSUM = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer iaculis metus id vestibulum nullam.";
 
@@ -139,7 +139,7 @@ class DefaultPartHttpMessageReaderTests  {
 	}
 
 	@ParameterizedDefaultPartHttpMessageReaderTest
-	void noEndHeader(DefaultPartHttpMessageReader reader)  {
+	void noEndHeader(DefaultPartHttpMessageReader reader) {
 		MockServerHttpRequest request = createRequest(
 				new ClassPathResource("no-end-header.multipart", getClass()), "boundary");
 		Flux<Part> result = reader.read(forClass(Part.class), request, emptyMap());
@@ -301,6 +301,23 @@ class DefaultPartHttpMessageReaderTests  {
 		latch.await();
 	}
 
+	@ParameterizedDefaultPartHttpMessageReaderTest
+	void emptyLastPart(DefaultPartHttpMessageReader reader) throws InterruptedException {
+		MockServerHttpRequest request = createRequest(
+				new ClassPathResource("empty-part.multipart", getClass()), "LiG0chJ0k7YtLt-FzTklYFgz50i88xJCW5jD");
+
+		Flux<Part> result = reader.read(forClass(Part.class), request, emptyMap());
+
+		CountDownLatch latch = new CountDownLatch(2);
+		StepVerifier.create(result)
+				.consumeNextWith(part -> testPart(part, null, "", latch))
+				.consumeNextWith(part -> testPart(part, null, "", latch))
+				.verifyComplete();
+
+		latch.await();
+	}
+
+
 	private void testBrowser(DefaultPartHttpMessageReader reader, Resource resource, String boundary)
 			throws InterruptedException {
 
@@ -418,11 +435,7 @@ class DefaultPartHttpMessageReaderTests  {
 	@interface ParameterizedDefaultPartHttpMessageReaderTest {
 	}
 
-	@SuppressWarnings("removal")
 	static Stream<Arguments> messageReaders() {
-		DefaultPartHttpMessageReader streaming = new DefaultPartHttpMessageReader();
-		streaming.setStreaming(true);
-
 		DefaultPartHttpMessageReader inMemory = new DefaultPartHttpMessageReader();
 		inMemory.setMaxInMemorySize(1000);
 
@@ -430,7 +443,6 @@ class DefaultPartHttpMessageReaderTests  {
 		onDisk.setMaxInMemorySize(100);
 
 		return Stream.of(
-				arguments(named("streaming", streaming)),
 				arguments(named("in-memory", inMemory)),
 				arguments(named("on-disk", onDisk)));
 	}

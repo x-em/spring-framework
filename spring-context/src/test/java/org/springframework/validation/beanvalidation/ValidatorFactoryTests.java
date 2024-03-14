@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ class ValidatorFactoryTests {
 		}
 
 		Validator nativeValidator = validator.unwrap(Validator.class);
-		assertThat(nativeValidator.getClass().getName().startsWith("org.hibernate")).isTrue();
+		assertThat(nativeValidator.getClass().getName()).startsWith("org.hibernate");
 		assertThat(validator.unwrap(ValidatorFactory.class)).isInstanceOf(HibernateValidatorFactory.class);
 		assertThat(validator.unwrap(HibernateValidatorFactory.class)).isInstanceOf(HibernateValidatorFactory.class);
 
@@ -100,7 +100,7 @@ class ValidatorFactoryTests {
 		}
 
 		Validator nativeValidator = validator.unwrap(Validator.class);
-		assertThat(nativeValidator.getClass().getName().startsWith("org.hibernate")).isTrue();
+		assertThat(nativeValidator.getClass().getName()).startsWith("org.hibernate");
 		assertThat(validator.unwrap(ValidatorFactory.class)).isInstanceOf(HibernateValidatorFactory.class);
 		assertThat(validator.unwrap(HibernateValidatorFactory.class)).isInstanceOf(HibernateValidatorFactory.class);
 
@@ -120,8 +120,8 @@ class ValidatorFactoryTests {
 		assertThat(result).hasSize(1);
 		Iterator<ConstraintViolation<ValidPerson>> iterator = result.iterator();
 		ConstraintViolation<?> cv = iterator.next();
-		assertThat(cv.getPropertyPath().toString()).isEqualTo("");
-		assertThat(cv.getConstraintDescriptor().getAnnotation() instanceof NameAddressValid).isTrue();
+		assertThat(cv.getPropertyPath().toString()).isEmpty();
+		assertThat(cv.getConstraintDescriptor().getAnnotation()).isInstanceOf(NameAddressValid.class);
 
 		validator.destroy();
 	}
@@ -159,19 +159,19 @@ class ValidatorFactoryTests {
 		assertThat(fieldError.getField()).isEqualTo("name");
 		List<String> errorCodes = Arrays.asList(fieldError.getCodes());
 		assertThat(errorCodes).hasSize(4);
-		assertThat(errorCodes.contains("NotNull.person.name")).isTrue();
-		assertThat(errorCodes.contains("NotNull.name")).isTrue();
-		assertThat(errorCodes.contains("NotNull.java.lang.String")).isTrue();
-		assertThat(errorCodes.contains("NotNull")).isTrue();
+		assertThat(errorCodes).contains("NotNull.person.name");
+		assertThat(errorCodes).contains("NotNull.name");
+		assertThat(errorCodes).contains("NotNull.java.lang.String");
+		assertThat(errorCodes).contains("NotNull");
 		fieldError = result.getFieldError("address.street");
 		assertThat(fieldError.getField()).isEqualTo("address.street");
 		errorCodes = Arrays.asList(fieldError.getCodes());
 		assertThat(errorCodes).hasSize(5);
-		assertThat(errorCodes.contains("NotNull.person.address.street")).isTrue();
-		assertThat(errorCodes.contains("NotNull.address.street")).isTrue();
-		assertThat(errorCodes.contains("NotNull.street")).isTrue();
-		assertThat(errorCodes.contains("NotNull.java.lang.String")).isTrue();
-		assertThat(errorCodes.contains("NotNull")).isTrue();
+		assertThat(errorCodes).contains("NotNull.person.address.street");
+		assertThat(errorCodes).contains("NotNull.address.street");
+		assertThat(errorCodes).contains("NotNull.street");
+		assertThat(errorCodes).contains("NotNull.java.lang.String");
+		assertThat(errorCodes).contains("NotNull");
 
 		validator.destroy();
 	}
@@ -191,8 +191,8 @@ class ValidatorFactoryTests {
 		ObjectError globalError = result.getGlobalError();
 		List<String> errorCodes = Arrays.asList(globalError.getCodes());
 		assertThat(errorCodes).hasSize(2);
-		assertThat(errorCodes.contains("NameAddressValid.person")).isTrue();
-		assertThat(errorCodes.contains("NameAddressValid")).isTrue();
+		assertThat(errorCodes).contains("NameAddressValid.person");
+		assertThat(errorCodes).contains("NameAddressValid");
 
 		validator.destroy();
 	}
@@ -213,8 +213,8 @@ class ValidatorFactoryTests {
 		ObjectError globalError = result.getGlobalError();
 		List<String> errorCodes = Arrays.asList(globalError.getCodes());
 		assertThat(errorCodes).hasSize(2);
-		assertThat(errorCodes.contains("NameAddressValid.person")).isTrue();
-		assertThat(errorCodes.contains("NameAddressValid")).isTrue();
+		assertThat(errorCodes).contains("NameAddressValid.person");
+		assertThat(errorCodes).contains("NameAddressValid");
 
 		validator.destroy();
 		ctx.close();

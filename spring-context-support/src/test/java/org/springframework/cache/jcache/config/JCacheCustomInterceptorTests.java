@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatRuntimeException;
 /**
  * @author Stephane Nicoll
  */
-public class JCacheCustomInterceptorTests {
+class JCacheCustomInterceptorTests {
 
 	protected ConfigurableApplicationContext ctx;
 
@@ -55,14 +55,14 @@ public class JCacheCustomInterceptorTests {
 
 
 	@BeforeEach
-	public void setup() {
+	void setup() {
 		ctx = new AnnotationConfigApplicationContext(EnableCachingConfig.class);
 		cs = ctx.getBean("service", JCacheableService.class);
 		exceptionCache = ctx.getBean("exceptionCache", Cache.class);
 	}
 
 	@AfterEach
-	public void tearDown() {
+	void tearDown() {
 		if (ctx != null) {
 			ctx.close();
 		}
@@ -70,22 +70,22 @@ public class JCacheCustomInterceptorTests {
 
 
 	@Test
-	public void onlyOneInterceptorIsAvailable() {
+	void onlyOneInterceptorIsAvailable() {
 		Map<String, JCacheInterceptor> interceptors = ctx.getBeansOfType(JCacheInterceptor.class);
-		assertThat(interceptors.size()).as("Only one interceptor should be defined").isEqualTo(1);
+		assertThat(interceptors).as("Only one interceptor should be defined").hasSize(1);
 		JCacheInterceptor interceptor = interceptors.values().iterator().next();
 		assertThat(interceptor.getClass()).as("Custom interceptor not defined").isEqualTo(TestCacheInterceptor.class);
 	}
 
 	@Test
-	public void customInterceptorAppliesWithRuntimeException() {
+	void customInterceptorAppliesWithRuntimeException() {
 		Object o = cs.cacheWithException("id", true);
 		// See TestCacheInterceptor
 		assertThat(o).isEqualTo(55L);
 	}
 
 	@Test
-	public void customInterceptorAppliesWithCheckedException() {
+	void customInterceptorAppliesWithCheckedException() {
 		assertThatRuntimeException()
 			.isThrownBy(() -> cs.cacheWithCheckedException("id", true))
 			.withCauseExactlyInstanceOf(IOException.class);

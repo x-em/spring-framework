@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.jms.BytesMessage;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.stubbing.Answer;
 
 import org.springframework.core.MethodParameter;
+import org.springframework.lang.Nullable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -55,7 +57,7 @@ class MappingJackson2MessageConverterTests {
 
 
 	@BeforeEach
-	public void setup() {
+	void setup() {
 		converter.setEncodingPropertyName("__encoding__");
 		converter.setTypeIdPropertyName("__typeid__");
 	}
@@ -194,7 +196,7 @@ class MappingJackson2MessageConverterTests {
 	}
 
 	@Test
-	void toTextMessageWithReturnTypeAndMultipleJsonViews() throws JMSException, NoSuchMethodException {
+	void toTextMessageWithReturnTypeAndMultipleJsonViews() throws NoSuchMethodException {
 		Method method = this.getClass().getDeclaredMethod("invalid");
 		MethodParameter returnType = new MethodParameter(method, -1);
 
@@ -202,7 +204,7 @@ class MappingJackson2MessageConverterTests {
 				testToTextMessageWithReturnType(returnType));
 	}
 
-	private void testToTextMessageWithReturnType(MethodParameter returnType) throws JMSException, NoSuchMethodException {
+	private void testToTextMessageWithReturnType(MethodParameter returnType) throws JMSException {
 		converter.setTargetType(MessageType.TEXT);
 		TextMessage textMessageMock = mock();
 
@@ -276,7 +278,7 @@ class MappingJackson2MessageConverterTests {
 		}
 
 		@Override
-		public boolean equals(Object o) {
+		public boolean equals(@Nullable Object o) {
 			if (this == o) {
 				return true;
 			}
@@ -284,10 +286,7 @@ class MappingJackson2MessageConverterTests {
 				return false;
 			}
 			MyBean bean = (MyBean) o;
-			if (foo != null ? !foo.equals(bean.foo) : bean.foo != null) {
-				return false;
-			}
-			return true;
+			return Objects.equals(this.foo, bean.foo);
 		}
 
 		@Override

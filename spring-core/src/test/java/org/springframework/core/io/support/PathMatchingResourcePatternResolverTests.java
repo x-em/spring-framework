@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.StringUtils;
@@ -49,17 +51,17 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  */
 class PathMatchingResourcePatternResolverTests {
 
-	private static final String[] CLASSES_IN_CORE_IO_SUPPORT = { "EncodedResource.class",
+	private static final String[] CLASSES_IN_CORE_IO_SUPPORT = {"EncodedResource.class",
 			"LocalizedResourceHelper.class", "PathMatchingResourcePatternResolver.class", "PropertiesLoaderSupport.class",
 			"PropertiesLoaderUtils.class", "ResourceArrayPropertyEditor.class", "ResourcePatternResolver.class",
-			"ResourcePatternUtils.class", "SpringFactoriesLoader.class" };
+			"ResourcePatternUtils.class", "SpringFactoriesLoader.class"};
 
-	private static final String[] TEST_CLASSES_IN_CORE_IO_SUPPORT = { "PathMatchingResourcePatternResolverTests.class" };
+	private static final String[] TEST_CLASSES_IN_CORE_IO_SUPPORT = {"PathMatchingResourcePatternResolverTests.class"};
 
-	private static final String[] CLASSES_IN_REACTOR_UTIL_ANNOTATION = { "NonNull.class", "NonNullApi.class", "Nullable.class" };
+	private static final String[] CLASSES_IN_REACTOR_UTIL_ANNOTATION = {"NonNull.class", "NonNullApi.class", "Nullable.class"};
 
 
-	private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+	private PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
 
 	@Nested
@@ -88,8 +90,29 @@ class PathMatchingResourcePatternResolverTests {
 			assertFilenames(pattern, expectedFilenames);
 		}
 
+		@Test  // gh-31111
+		void usingFileProtocolWithWildcardInPatternAndNonexistentRootPath() throws IOException {
+			Path testResourcesDir = Paths.get("src/test/resources").toAbsolutePath();
+			String pattern = String.format("file:%s/example/bogus/**", testResourcesDir);
+			assertThat(resolver.getResources(pattern)).isEmpty();
+			// When the log level for the resolver is set to at least INFO, we should see
+			// a log entry similar to the following.
+			//
+			// [main] INFO  o.s.c.i.s.PathMatchingResourcePatternResolver -
+			// Skipping search for files matching pattern [**]: directory
+			// [/<...>/spring-core/src/test/resources/example/bogus] does not exist
+		}
+
+		@Test
+		void encodedHashtagInPath() throws IOException {
+			Path rootDir = Paths.get("src/test/resources/custom%23root").toAbsolutePath();
+			URL root = new URL("file:" + rootDir + "/");
+			resolver = new PathMatchingResourcePatternResolver(new DefaultResourceLoader(new URLClassLoader(new URL[] {root})));
+			assertExactFilenames("classpath*:scanned/*.txt", "resource#test1.txt", "resource#test2.txt");
+		}
+
 		@Nested
-		class WithHashtagsInTheirFileNames {
+		class WithHashtagsInTheirFilenames {
 
 			@Test
 			void usingClasspathStarProtocol() {
@@ -177,7 +200,7 @@ class PathMatchingResourcePatternResolverTests {
 			}
 
 			@Test
-			void usingFileProtocolWithoutWildcardInPatternAndEndingInSlashStarStar()  {
+			void usingFileProtocolWithoutWildcardInPatternAndEndingInSlashStarStar() {
 				Path testResourcesDir = Paths.get("src/test/resources").toAbsolutePath();
 				String pattern = String.format("file:%s/scanned-resources/**", testResourcesDir);
 				String pathPrefix = ".+?resources/";
@@ -306,8 +329,8 @@ class PathMatchingResourcePatternResolverTests {
 	}
 
 	private String getPath(Resource resource) {
-		// Tests fail if we use resouce.getURL().getPath(). They would also fail on Mac OS when
-		// using resouce.getURI().getPath() if the resource paths are not Unicode normalized.
+		// Tests fail if we use resource.getURL().getPath(). They would also fail on macOS when
+		// using resource.getURI().getPath() if the resource paths are not Unicode normalized.
 		//
 		// On the JVM, all tests should pass when using resouce.getFile().getPath(); however,
 		// we use FileSystemResource#getPath since this test class is sometimes run within a

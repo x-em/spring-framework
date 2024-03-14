@@ -23,6 +23,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.BitSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,14 +50,27 @@ import static java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME;
  */
 public final class ContentDisposition {
 
-	private final static Pattern BASE64_ENCODED_PATTERN =
+	private static final Pattern BASE64_ENCODED_PATTERN =
 			Pattern.compile("=\\?([0-9a-zA-Z-_]+)\\?B\\?([+/0-9a-zA-Z]+=*)\\?=");
 
-	private final static Pattern QUOTED_PRINTABLE_ENCODED_PATTERN =
+	private static final Pattern QUOTED_PRINTABLE_ENCODED_PATTERN =
 			Pattern.compile("=\\?([0-9a-zA-Z-_]+)\\?Q\\?([!->@-~]+)\\?="); // Printable ASCII other than "?" or SPACE
 
 	private static final String INVALID_HEADER_FIELD_PARAMETER_FORMAT =
 			"Invalid header field parameter format (as defined in RFC 5987)";
+
+	private static final BitSet PRINTABLE = new BitSet(256);
+
+
+	static {
+		// RFC 2045, Section 6.7, and RFC 2047, Section 4.2
+		for (int i=33; i<= 126; i++) {
+			PRINTABLE.set(i);
+		}
+		PRINTABLE.set(61, false); // =
+		PRINTABLE.set(63, false); // ?
+		PRINTABLE.set(95, false); // _
+	}
 
 
 	@Nullable
@@ -213,33 +227,21 @@ public final class ContentDisposition {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof ContentDisposition otherCd)) {
-			return false;
-		}
-		return (ObjectUtils.nullSafeEquals(this.type, otherCd.type) &&
-				ObjectUtils.nullSafeEquals(this.name, otherCd.name) &&
-				ObjectUtils.nullSafeEquals(this.filename, otherCd.filename) &&
-				ObjectUtils.nullSafeEquals(this.charset, otherCd.charset) &&
-				ObjectUtils.nullSafeEquals(this.size, otherCd.size) &&
-				ObjectUtils.nullSafeEquals(this.creationDate, otherCd.creationDate)&&
-				ObjectUtils.nullSafeEquals(this.modificationDate, otherCd.modificationDate)&&
-				ObjectUtils.nullSafeEquals(this.readDate, otherCd.readDate));
+		return (this == other || (other instanceof ContentDisposition that &&
+				ObjectUtils.nullSafeEquals(this.type, that.type) &&
+				ObjectUtils.nullSafeEquals(this.name, that.name) &&
+				ObjectUtils.nullSafeEquals(this.filename, that.filename) &&
+				ObjectUtils.nullSafeEquals(this.charset, that.charset) &&
+				ObjectUtils.nullSafeEquals(this.size, that.size) &&
+				ObjectUtils.nullSafeEquals(this.creationDate, that.creationDate)&&
+				ObjectUtils.nullSafeEquals(this.modificationDate, that.modificationDate)&&
+				ObjectUtils.nullSafeEquals(this.readDate, that.readDate)));
 	}
 
 	@Override
 	public int hashCode() {
-		int result = ObjectUtils.nullSafeHashCode(this.type);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.name);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.filename);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.charset);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.size);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.creationDate);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.modificationDate);
-		result = 31 * result + ObjectUtils.nullSafeHashCode(this.readDate);
-		return result;
+		return ObjectUtils.nullSafeHash(this.type, this.name,this.filename,
+				this.charset, this.size, this.creationDate, this.modificationDate, this.readDate);
 	}
 
 	/**
@@ -545,7 +547,7 @@ public final class ContentDisposition {
 		int index = 0;
 		while (index < value.length) {
 			byte b = value[index];
-			if (b == '_') {
+			if (b == '_') { // RFC 2047, section 4.2, rule (2)
 				baos.write(' ');
 				index++;
 			}
@@ -583,7 +585,10 @@ public final class ContentDisposition {
 		sb.append(charset.name());
 		sb.append("?Q?");
 		for (byte b : source) {
-			if (isPrintable(b)) {
+			if (b == 32) { // RFC 2047, section 4.2, rule (2)
+				sb.append('_');
+			}
+			else if (isPrintable(b)) {
 				sb.append((char) b);
 			}
 			else {
@@ -599,7 +604,11 @@ public final class ContentDisposition {
 	}
 
 	private static boolean isPrintable(byte c) {
-		return (c >= '!' && c <= '<') || (c >= '>' && c <= '~');
+		int b = c;
+		if (b < 0) {
+			b = 256 + b;
+		}
+		return PRINTABLE.get(b);
 	}
 
 	private static String encodeQuotedPairs(String filename) {
@@ -624,7 +633,11 @@ public final class ContentDisposition {
 			char c = filename.charAt(i);
 			if (filename.charAt(i) == '\\' && i + 1 < length) {
 				i++;
-				sb.append(filename.charAt(i));
+				char next = filename.charAt(i);
+				if (next != '"' && next != '\\') {
+					sb.append(c);
+				}
+				sb.append(next);
 			}
 			else {
 				sb.append(c);
@@ -679,7 +692,7 @@ public final class ContentDisposition {
 		/**
 		 * Set the value of the {@literal name} parameter.
 		 */
-		Builder name(String name);
+		Builder name(@Nullable String name);
 
 		/**
 		 * Set the value of the {@literal filename} parameter. The given
@@ -688,7 +701,7 @@ public final class ContentDisposition {
 		 * be escaped with a backslash, e.g. {@code "foo\"bar.txt"} becomes
 		 * {@code "foo\\\"bar.txt"}.
 		 */
-		Builder filename(String filename);
+		Builder filename(@Nullable String filename);
 
 		/**
 		 * Set the value of the {@code filename} that will be encoded as
@@ -699,7 +712,7 @@ public final class ContentDisposition {
 		 * <a href="https://tools.ietf.org/html/rfc7578#section-4.2">RFC 7578, Section 4.2</a>
 		 * and also RFC 5987 mention it does not apply to multipart requests.
 		 */
-		Builder filename(String filename, Charset charset);
+		Builder filename(@Nullable String filename, @Nullable Charset charset);
 
 		/**
 		 * Set the value of the {@literal size} parameter.
@@ -708,7 +721,7 @@ public final class ContentDisposition {
 		 * to be removed in a future release.
 		 */
 		@Deprecated
-		Builder size(Long size);
+		Builder size(@Nullable Long size);
 
 		/**
 		 * Set the value of the {@literal creation-date} parameter.
@@ -717,7 +730,7 @@ public final class ContentDisposition {
 		 * to be removed in a future release.
 		 */
 		@Deprecated
-		Builder creationDate(ZonedDateTime creationDate);
+		Builder creationDate(@Nullable ZonedDateTime creationDate);
 
 		/**
 		 * Set the value of the {@literal modification-date} parameter.
@@ -726,7 +739,7 @@ public final class ContentDisposition {
 		 * to be removed in a future release.
 		 */
 		@Deprecated
-		Builder modificationDate(ZonedDateTime modificationDate);
+		Builder modificationDate(@Nullable ZonedDateTime modificationDate);
 
 		/**
 		 * Set the value of the {@literal read-date} parameter.
@@ -735,7 +748,7 @@ public final class ContentDisposition {
 		 * to be removed in a future release.
 		 */
 		@Deprecated
-		Builder readDate(ZonedDateTime readDate);
+		Builder readDate(@Nullable ZonedDateTime readDate);
 
 		/**
 		 * Build the content disposition.
@@ -782,14 +795,12 @@ public final class ContentDisposition {
 
 		@Override
 		public Builder filename(String filename) {
-			Assert.hasText(filename, "No filename");
 			this.filename = filename;
 			return this;
 		}
 
 		@Override
 		public Builder filename(String filename, Charset charset) {
-			Assert.hasText(filename, "No filename");
 			this.filename = filename;
 			this.charset = charset;
 			return this;

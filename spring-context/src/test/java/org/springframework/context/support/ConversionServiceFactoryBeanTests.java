@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ class ConversionServiceFactoryBeanTests {
 	}
 
 	@Test
+	@SuppressWarnings("Convert2Lambda")
 	void createDefaultConversionServiceWithSupplements() {
 		ConversionServiceFactoryBean factory = new ConversionServiceFactoryBean();
 		Set<Object> converters = new HashSet<>();
@@ -117,14 +118,14 @@ class ConversionServiceFactoryBeanTests {
 	private void doTestConversionServiceInApplicationContext(String fileName, Class<?> resourceClass) {
 		ConfigurableApplicationContext ctx = new ClassPathXmlApplicationContext(fileName, getClass());
 		ResourceTestBean tb = ctx.getBean("resourceTestBean", ResourceTestBean.class);
-		assertThat(resourceClass.isInstance(tb.getResource())).isTrue();
-		assertThat(tb.getResourceArray().length > 0).isTrue();
-		assertThat(resourceClass.isInstance(tb.getResourceArray()[0])).isTrue();
-		assertThat(tb.getResourceMap().size() == 1).isTrue();
-		assertThat(resourceClass.isInstance(tb.getResourceMap().get("key1"))).isTrue();
-		assertThat(tb.getResourceArrayMap().size() == 1).isTrue();
-		assertThat(tb.getResourceArrayMap().get("key1").length > 0).isTrue();
-		assertThat(resourceClass.isInstance(tb.getResourceArrayMap().get("key1")[0])).isTrue();
+		assertThat(tb.getResource()).isInstanceOf(resourceClass);
+		assertThat(tb.getResourceArray()).hasSize(1);
+		assertThat(tb.getResourceArray()[0]).isInstanceOf(resourceClass);
+		assertThat(tb.getResourceMap()).hasSize(1);
+		assertThat(tb.getResourceMap().get("key1")).isInstanceOf(resourceClass);
+		assertThat(tb.getResourceArrayMap()).hasSize(1);
+		assertThat(tb.getResourceArrayMap().get("key1")).isNotEmpty();
+		assertThat(tb.getResourceArrayMap().get("key1")[0]).isInstanceOf(resourceClass);
 		ctx.close();
 	}
 
@@ -141,7 +142,7 @@ class ConversionServiceFactoryBeanTests {
 	static class ComplexConstructorArgument {
 
 		ComplexConstructorArgument(Map<String, Class<?>> map) {
-			assertThat(!map.isEmpty()).isTrue();
+			assertThat(map).isNotEmpty();
 			assertThat(map.keySet().iterator().next()).isInstanceOf(String.class);
 			assertThat(map.values().iterator().next()).isInstanceOf(Class.class);
 		}

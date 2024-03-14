@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,6 +74,9 @@ public abstract class AbstractBrokerMessageHandler
 	private final BrokerAvailabilityEvent notAvailableEvent = new BrokerAvailabilityEvent(false, this);
 
 	private boolean autoStartup = true;
+
+	@Nullable
+	private Integer phase;
 
 	private volatile boolean running;
 
@@ -161,8 +164,7 @@ public abstract class AbstractBrokerMessageHandler
 	 * ThreadPoolExecutor that in turn does not guarantee processing in order.
 	 * <p>When this flag is set to {@code true} messages within the same session
 	 * will be sent to the {@code "clientOutboundChannel"} one at a time in
-	 * order to preserve the order of publication. Enable this only if needed
-	 * since there is some performance overhead to keep messages in order.
+	 * order to preserve the order of publication.
 	 * @param preservePublishOrder whether to publish in order
 	 * @since 5.1
 	 */
@@ -198,6 +200,20 @@ public abstract class AbstractBrokerMessageHandler
 		return this.autoStartup;
 	}
 
+	/**
+	 * Set the phase that this handler should run in.
+	 * <p>By default, this is {@link SmartLifecycle#DEFAULT_PHASE}.
+	 * @since 6.1.4
+	 */
+	public void setPhase(int phase) {
+		this.phase = phase;
+	}
+
+	@Override
+	public int getPhase() {
+		return (this.phase != null ? this.phase : SmartLifecycle.super.getPhase());
+	}
+
 
 	@Override
 	public void start() {
@@ -205,8 +221,8 @@ public abstract class AbstractBrokerMessageHandler
 			logger.info("Starting...");
 			this.clientInboundChannel.subscribe(this);
 			this.brokerChannel.subscribe(this);
-			if (this.clientInboundChannel instanceof InterceptableChannel) {
-				((InterceptableChannel) this.clientInboundChannel).addInterceptor(0, this.unsentDisconnectInterceptor);
+			if (this.clientInboundChannel instanceof InterceptableChannel ic) {
+				ic.addInterceptor(0, this.unsentDisconnectInterceptor);
 			}
 			startInternal();
 			this.running = true;
@@ -224,8 +240,8 @@ public abstract class AbstractBrokerMessageHandler
 			stopInternal();
 			this.clientInboundChannel.unsubscribe(this);
 			this.brokerChannel.unsubscribe(this);
-			if (this.clientInboundChannel instanceof InterceptableChannel) {
-				((InterceptableChannel) this.clientInboundChannel).removeInterceptor(this.unsentDisconnectInterceptor);
+			if (this.clientInboundChannel instanceof InterceptableChannel ic) {
+				ic.removeInterceptor(this.unsentDisconnectInterceptor);
 			}
 			this.running = false;
 			logger.info("Stopped.");

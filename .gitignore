@@ -21,15 +21,14 @@ derby.log
 /build
 buildSrc/build
 /spring-*/build
-/framework-bom/build
-/framework-docs/build
+/framework-*/build
 /integration-tests/build
 /src/asciidoc/build
 spring-test/test-output/
 
 # Maven artifacts
 pom.xml
-target/
+/target/
 
 # Eclipse artifacts, including WTP generated manifests
 bin
@@ -50,3 +49,5 @@ atlassian-ide-plugin.xml
 
 # VS Code
 .vscode/
+
+cached-antora-playbook.yml

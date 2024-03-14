@@ -19,6 +19,7 @@ package org.springframework.http;
 import java.io.Serializable;
 
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 
 /**
  * Default implementation of {@link HttpStatusCode}.
@@ -26,8 +27,7 @@ import org.springframework.lang.NonNull;
  * @author Arjen Poutsma
  * @since 6.0
  */
-final class DefaultHttpStatusCode
-		implements HttpStatusCode, Comparable<HttpStatusCode>, Serializable {
+final class DefaultHttpStatusCode implements HttpStatusCode, Comparable<HttpStatusCode>, Serializable {
 
 	private static final long serialVersionUID = 7017664779360718111L;
 
@@ -78,19 +78,20 @@ final class DefaultHttpStatusCode
 		return this.value / 100;
 	}
 
+
 	@Override
 	public int compareTo(@NonNull HttpStatusCode o) {
 		return Integer.compare(this.value, o.value());
 	}
 
 	@Override
-	public int hashCode() {
-		return this.value;
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof HttpStatusCode that && this.value == that.value()));
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		return (obj instanceof HttpStatusCode other && this.value == other.value());
+	public int hashCode() {
+		return this.value;
 	}
 
 	@Override

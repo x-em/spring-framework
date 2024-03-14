@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,27 @@
 
 package org.springframework.web.reactive.result.method.annotation;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import kotlin.reflect.KFunction;
+import kotlin.reflect.KParameter;
+import kotlin.reflect.jvm.ReflectJvmMapping;
 import reactor.core.publisher.Mono;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.ConversionNotSupportedException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.beans.factory.config.BeanExpressionContext;
 import org.springframework.beans.factory.config.BeanExpressionResolver;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.core.KotlinDetector;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.lang.Nullable;
 import org.springframework.ui.Model;
+import org.springframework.util.Assert;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.ValueConstants;
 import org.springframework.web.reactive.BindingContext;
@@ -57,6 +64,7 @@ import org.springframework.web.server.ServerWebInputException;
  * {@link ConfigurableBeanFactory} must be supplied to the class constructor.
  *
  * @author Rossen Stoyanchev
+ * @author Sebastien Deleuze
  * @since 5.0
  */
 public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodArgumentResolverSupport {
@@ -145,9 +153,10 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 		if (info.name.isEmpty()) {
 			name = parameter.getParameterName();
 			if (name == null) {
-				throw new IllegalArgumentException(
-						"Name for argument of type [" + parameter.getNestedParameterType().getName() +
-						"] not specified, and parameter name information not found in class file either.");
+				throw new IllegalArgumentException("""
+						Name for argument of type [%s] not specified, and parameter name information not \
+						available via reflection. Ensure that the compiler uses the '-parameters' flag."""
+							.formatted(parameter.getNestedParameterType().getName()));
 			}
 		}
 		String defaultValue = (ValueConstants.DEFAULT_NONE.equals(info.defaultValue) ? null : info.defaultValue);
@@ -189,13 +198,18 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 			BindingContext bindingContext, ServerWebExchange exchange) {
 
 		WebDataBinder binder = bindingContext.createDataBinder(exchange, namedValueInfo.name);
+		Class<?> parameterType = parameter.getParameterType();
+		if (KotlinDetector.isKotlinPresent() && KotlinDetector.isInlineClass(parameterType)) {
+			parameterType = BeanUtils.findPrimaryConstructor(parameterType).getParameterTypes()[0];
+		}
 		try {
-			value = binder.convertIfNecessary(value, parameter.getParameterType(), parameter);
+			value = binder.convertIfNecessary(value, parameterType, parameter);
 		}
 		catch (ConversionNotSupportedException ex) {
 			throw new ServerErrorException("Conversion not supported.", parameter, ex);
 		}
 		catch (TypeMismatchException ex) {
+			ex.initPropertyName(namedValueInfo.name);
 			throw new ServerWebInputException("Type mismatch.", parameter, ex);
 		}
 		return value;
@@ -209,14 +223,21 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 
 		return Mono.fromSupplier(() -> {
 			Object value = null;
+			boolean hasDefaultValue = KotlinDetector.isKotlinReflectPresent()
+					&& KotlinDetector.isKotlinType(parameter.getDeclaringClass())
+					&& KotlinDelegate.hasDefaultValue(parameter);
 			if (namedValueInfo.defaultValue != null) {
 				value = resolveEmbeddedValuesAndExpressions(namedValueInfo.defaultValue);
 			}
 			else if (namedValueInfo.required && !parameter.isOptional()) {
 				handleMissingValue(namedValueInfo.name, parameter, exchange);
 			}
-			value = handleNullValue(namedValueInfo.name, value, parameter.getNestedParameterType());
-			value = applyConversion(value, namedValueInfo, parameter, bindingContext, exchange);
+			if (!hasDefaultValue) {
+				value = handleNullValue(namedValueInfo.name, value, parameter.getNestedParameterType());
+			}
+			if (value != null || !hasDefaultValue) {
+				value = applyConversion(value, namedValueInfo, parameter, bindingContext, exchange);
+			}
 			handleResolvedValue(value, namedValueInfo.name, parameter, model, exchange);
 			return value;
 		});
@@ -256,7 +277,7 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 	@Nullable
 	private Object handleNullValue(String name, @Nullable Object value, Class<?> paramType) {
 		if (value == null) {
-			if (Boolean.TYPE.equals(paramType)) {
+			if (paramType == boolean.class) {
 				return Boolean.FALSE;
 			}
 			else if (paramType.isPrimitive()) {
@@ -300,6 +321,31 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 			this.name = name;
 			this.required = required;
 			this.defaultValue = defaultValue;
+		}
+	}
+
+	/**
+	 * Inner class to avoid a hard dependency on Kotlin at runtime.
+	 */
+	private static class KotlinDelegate {
+
+		/**
+		 * Check whether the specified {@link MethodParameter} represents a nullable Kotlin type
+		 * or an optional parameter (with a default value in the Kotlin declaration).
+		 */
+		public static boolean hasDefaultValue(MethodParameter parameter) {
+			Method method = parameter.getMethod();
+			Assert.notNull(method, () -> "Retrieved null method from MethodParameter: " + parameter);
+			KFunction<?> function = ReflectJvmMapping.getKotlinFunction(method);
+			if (function != null) {
+				int index = 0;
+				for (KParameter kParameter : function.getParameters()) {
+					if (KParameter.Kind.VALUE.equals(kParameter.getKind()) && parameter.getParameterIndex() == index++) {
+						return kParameter.isOptional();
+					}
+				}
+			}
+			return false;
 		}
 	}
 

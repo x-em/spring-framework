@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.context.ResourceLoaderAware;
@@ -34,6 +36,8 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.DefaultPropertiesPersister;
 import org.springframework.util.PropertiesPersister;
 import org.springframework.util.StringUtils;
@@ -74,6 +78,7 @@ import org.springframework.util.StringUtils;
  * this message source!
  *
  * @author Juergen Hoeller
+ * @author Sebastien Deleuze
  * @see #setCacheSeconds
  * @see #setBasenames
  * @see #setDefaultEncoding
@@ -87,10 +92,10 @@ import org.springframework.util.StringUtils;
 public class ReloadableResourceBundleMessageSource extends AbstractResourceBasedMessageSource
 		implements ResourceLoaderAware {
 
-	private static final String PROPERTIES_SUFFIX = ".properties";
+	private static final String XML_EXTENSION = ".xml";
 
-	private static final String XML_SUFFIX = ".xml";
 
+	private List<String> fileExtensions = List.of(".properties", XML_EXTENSION);
 
 	@Nullable
 	private Properties fileEncodings;
@@ -110,6 +115,22 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	// Cache to hold already loaded properties per filename
 	private final ConcurrentMap<Locale, PropertiesHolder> cachedMergedProperties = new ConcurrentHashMap<>();
 
+
+	/**
+	 * Set the list of supported file extensions.
+	 * <p>The default is a list containing {@code .properties} and {@code .xml}.
+	 * @param fileExtensions the file extensions (starts with a dot)
+	 * @since 6.1
+	 */
+	public void setFileExtensions(List<String> fileExtensions) {
+		Assert.isTrue(!CollectionUtils.isEmpty(fileExtensions), "At least one file extension is required");
+		for (String extension : fileExtensions) {
+			if (!extension.startsWith(".")) {
+				throw new IllegalArgumentException("File extension '" + extension + "' should start with '.'");
+			}
+		}
+		this.fileExtensions = Collections.unmodifiableList(fileExtensions);
+	}
 
 	/**
 	 * Set per-file charsets to use for parsing properties files.
@@ -230,36 +251,66 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * <p>Only used when caching resource bundle contents forever, i.e.
 	 * with cacheSeconds &lt; 0. Therefore, merged properties are always
 	 * cached forever.
+	 * @see #collectPropertiesToMerge
+	 * @see #mergeProperties
 	 */
 	protected PropertiesHolder getMergedProperties(Locale locale) {
 		PropertiesHolder mergedHolder = this.cachedMergedProperties.get(locale);
 		if (mergedHolder != null) {
 			return mergedHolder;
 		}
+		mergedHolder = mergeProperties(collectPropertiesToMerge(locale));
+		PropertiesHolder existing = this.cachedMergedProperties.putIfAbsent(locale, mergedHolder);
+		if (existing != null) {
+			mergedHolder = existing;
+		}
+		return mergedHolder;
+	}
 
-		Properties mergedProps = newProperties();
-		long latestTimestamp = -1;
+	/**
+	 * Determine the properties to merge based on the specified basenames.
+	 * @param locale the locale
+	 * @return the list of properties holders
+	 * @since 6.1.4
+	 * @see #getBasenameSet()
+	 * @see #calculateAllFilenames
+	 * @see #mergeProperties
+	 */
+	protected List<PropertiesHolder> collectPropertiesToMerge(Locale locale) {
 		String[] basenames = StringUtils.toStringArray(getBasenameSet());
+		List<PropertiesHolder> holders = new ArrayList<>(basenames.length);
 		for (int i = basenames.length - 1; i >= 0; i--) {
 			List<String> filenames = calculateAllFilenames(basenames[i], locale);
 			for (int j = filenames.size() - 1; j >= 0; j--) {
 				String filename = filenames.get(j);
 				PropertiesHolder propHolder = getProperties(filename);
 				if (propHolder.getProperties() != null) {
-					mergedProps.putAll(propHolder.getProperties());
-					if (propHolder.getFileTimestamp() > latestTimestamp) {
-						latestTimestamp = propHolder.getFileTimestamp();
-					}
+					holders.add(propHolder);
 				}
 			}
 		}
+		return holders;
+	}
 
-		mergedHolder = new PropertiesHolder(mergedProps, latestTimestamp);
-		PropertiesHolder existing = this.cachedMergedProperties.putIfAbsent(locale, mergedHolder);
-		if (existing != null) {
-			mergedHolder = existing;
+	/**
+	 * Merge the given properties holders into a single holder.
+	 * @param holders the list of properties holders
+	 * @return a single merged properties holder
+	 * @since 6.1.4
+	 * @see #newProperties()
+	 * @see #getMergedProperties
+	 * @see #collectPropertiesToMerge
+	 */
+	protected PropertiesHolder mergeProperties(List<PropertiesHolder> holders) {
+		Properties mergedProps = newProperties();
+		long latestTimestamp = -1;
+		for (PropertiesHolder holder : holders) {
+			mergedProps.putAll(holder.getProperties());
+			if (holder.getFileTimestamp() > latestTimestamp) {
+				latestTimestamp = holder.getFileTimestamp();
+			}
 		}
-		return mergedHolder;
+		return new PropertiesHolder(mergedProps, latestTimestamp);
 	}
 
 	/**
@@ -400,20 +451,17 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 
 	/**
 	 * Refresh the PropertiesHolder for the given bundle filename.
-	 * The holder can be {@code null} if not cached before, or a timed-out cache entry
+	 * <p>The holder can be {@code null} if not cached before, or a timed-out cache entry
 	 * (potentially getting re-validated against the current last-modified timestamp).
 	 * @param filename the bundle filename (basename + Locale)
 	 * @param propHolder the current PropertiesHolder for the bundle
+	 * @see #resolveResource(String)
 	 */
 	protected PropertiesHolder refreshProperties(String filename, @Nullable PropertiesHolder propHolder) {
 		long refreshTimestamp = (getCacheMillis() < 0 ? -1 : System.currentTimeMillis());
 
-		Resource resource = this.resourceLoader.getResource(filename + PROPERTIES_SUFFIX);
-		if (!resource.exists()) {
-			resource = this.resourceLoader.getResource(filename + XML_SUFFIX);
-		}
-
-		if (resource.exists()) {
+		Resource resource = resolveResource(filename);
+		if (resource != null) {
 			long fileTimestamp = -1;
 			if (getCacheMillis() >= 0) {
 				// Last-modified timestamp of file will just be read if caching with timeout.
@@ -451,7 +499,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 		else {
 			// Resource does not exist.
 			if (logger.isDebugEnabled()) {
-				logger.debug("No properties file found for [" + filename + "] - neither plain properties nor XML");
+				logger.debug("No properties file found for [" + filename + "]");
 			}
 			// Empty holder representing "not found".
 			propHolder = new PropertiesHolder();
@@ -460,6 +508,48 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 		propHolder.setRefreshTimestamp(refreshTimestamp);
 		this.cachedProperties.put(filename, propHolder);
 		return propHolder;
+	}
+
+	/**
+	 * Resolve the specified bundle {@code filename} into a concrete {@link Resource},
+	 * potentially checking multiple sources or file extensions.
+	 * <p>If no suitable concrete {@code Resource} can be resolved, this method
+	 * returns a {@code Resource} for which {@link Resource#exists()} returns
+	 * {@code false}, which gets subsequently ignored.
+	 * <p>This can be leveraged to check the last modification timestamp or to load
+	 * properties from alternative sources &mdash; for example, from an XML BLOB
+	 * in a database, or from properties serialized using a custom format such as
+	 * JSON.
+	 * <p>The default implementation delegates to the configured
+	 * {@link #setResourceLoader(ResourceLoader) ResourceLoader} to resolve
+	 * resources, checking in order for existing {@code Resource} with extensions defined
+	 * by {@link #setFileExtensions(List)} ({@code .properties} and {@code .xml}
+	 * by default).
+	 * <p>When overriding this method, {@link #loadProperties(Resource, String)}
+	 * <strong>must</strong> be capable of loading properties from any type of
+	 * {@code Resource} returned by this method. As a consequence, implementors
+	 * are strongly encouraged to also override {@code loadProperties()}.
+	 * <p>As an alternative to overriding this method, you can configure a
+	 * {@link #setPropertiesPersister(PropertiesPersister) PropertiesPersister}
+	 * that is capable of dealing with all resources returned by this method.
+	 * Please note, however, that the default {@code loadProperties()} implementation
+	 * uses {@link PropertiesPersister#loadFromXml(Properties, InputStream) loadFromXml}
+	 * for XML resources and otherwise uses the two
+	 * {@link PropertiesPersister#load(Properties, InputStream) load} methods
+	 * for other types of resources.
+	 * @param filename the bundle filename (basename + Locale)
+	 * @return the {@code Resource} to use, or {@code null} if none found
+	 * @since 6.1
+	 */
+	@Nullable
+	protected Resource resolveResource(String filename) {
+		for (String fileExtension : this.fileExtensions) {
+			Resource resource = this.resourceLoader.getResource(filename + fileExtension);
+			if (resource.exists()) {
+				return resource;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -473,7 +563,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 		Properties props = newProperties();
 		try (InputStream is = resource.getInputStream()) {
 			String resourceFilename = resource.getFilename();
-			if (resourceFilename != null && resourceFilename.endsWith(XML_SUFFIX)) {
+			if (resourceFilename != null && resourceFilename.endsWith(XML_EXTENSION)) {
 				if (logger.isDebugEnabled()) {
 					logger.debug("Loading properties [" + resource.getFilename() + "]");
 				}
@@ -561,7 +651,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 
 		private volatile long refreshTimestamp = -2;
 
-		private final ReentrantLock refreshLock = new ReentrantLock();
+		private final Lock refreshLock = new ReentrantLock();
 
 		/** Cache to hold already generated MessageFormats per message code. */
 		private final ConcurrentMap<String, Map<Locale, MessageFormat>> cachedMessageFormats =

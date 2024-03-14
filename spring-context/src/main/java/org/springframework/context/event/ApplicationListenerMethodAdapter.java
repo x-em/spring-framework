@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,8 @@ import org.springframework.context.ApplicationEvent;
 import org.springframework.context.PayloadApplicationEvent;
 import org.springframework.context.expression.AnnotatedElementKey;
 import org.springframework.core.BridgeMethodResolver;
+import org.springframework.core.CoroutinesUtils;
+import org.springframework.core.KotlinDetector;
 import org.springframework.core.Ordered;
 import org.springframework.core.ReactiveAdapter;
 import org.springframework.core.ReactiveAdapterRegistry;
@@ -64,6 +66,8 @@ import org.springframework.util.StringUtils;
  * @author Stephane Nicoll
  * @author Juergen Hoeller
  * @author Sam Brannen
+ * @author Sebastien Deleuze
+ * @author Yanming Zhou
  * @since 4.2
  */
 public class ApplicationListenerMethodAdapter implements GenericApplicationListener {
@@ -86,6 +90,8 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 
 	@Nullable
 	private final String condition;
+
+	private final boolean defaultExecution;
 
 	private final int order;
 
@@ -115,13 +121,14 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 		EventListener ann = AnnotatedElementUtils.findMergedAnnotation(this.targetMethod, EventListener.class);
 		this.declaredEventTypes = resolveDeclaredEventTypes(method, ann);
 		this.condition = (ann != null ? ann.condition() : null);
+		this.defaultExecution = (ann == null || ann.defaultExecution());
 		this.order = resolveOrder(this.targetMethod);
 		String id = (ann != null ? ann.id() : "");
 		this.listenerId = (!id.isEmpty() ? id : null);
 	}
 
 	private static List<ResolvableType> resolveDeclaredEventTypes(Method method, @Nullable EventListener ann) {
-		int count = method.getParameterCount();
+		int count = (KotlinDetector.isSuspendingFunction(method) ? method.getParameterCount() - 1 : method.getParameterCount());
 		if (count > 1) {
 			throw new IllegalStateException(
 					"Maximum one parameter is allowed for event listener method: " + method);
@@ -162,13 +169,17 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
-		processEvent(event);
+		if (isDefaultExecution()) {
+			processEvent(event);
+		}
 	}
 
 	@Override
 	public boolean supportsEventType(ResolvableType eventType) {
 		for (ResolvableType declaredEventType : this.declaredEventTypes) {
-			if (declaredEventType.isAssignableFrom(eventType)) {
+			if (eventType.hasUnresolvableGenerics() ?
+					declaredEventType.toClass().isAssignableFrom(eventType.toClass()) :
+					declaredEventType.isAssignableFrom(eventType)) {
 				return true;
 			}
 			if (PayloadApplicationEvent.class.isAssignableFrom(eventType.toClass())) {
@@ -176,9 +187,13 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 				if (declaredEventType.isAssignableFrom(payloadType)) {
 					return true;
 				}
+				if (payloadType.resolve() == null) {
+					// Always accept such event when the type is erased
+					return true;
+				}
 			}
 		}
-		return eventType.hasUnresolvableGenerics();
+		return false;
 	}
 
 	@Override
@@ -214,13 +229,24 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 		for (Class<?> paramType : method.getParameterTypes()) {
 			sj.add(paramType.getName());
 		}
-		return ClassUtils.getQualifiedMethodName(method) + sj.toString();
+		return ClassUtils.getQualifiedMethodName(method) + sj;
+	}
+
+	/**
+	 * Return whether default execution is applicable for the target listener.
+	 * @since 6.2
+	 * @see #onApplicationEvent
+	 * @see EventListener#defaultExecution()
+	 */
+	protected boolean isDefaultExecution() {
+		return this.defaultExecution;
 	}
 
 
 	/**
 	 * Process the specified {@link ApplicationEvent}, checking if the condition
 	 * matches and handling a non-null result, if any.
+	 * @param event the event to process through the listener method
 	 */
 	public void processEvent(ApplicationEvent event) {
 		Object[] args = resolveArguments(event);
@@ -233,6 +259,29 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 				logger.trace("No result object given - no result to handle");
 			}
 		}
+	}
+
+	/**
+	 * Determine whether the listener method would actually handle the given
+	 * event, checking if the condition matches.
+	 * @param event the event to process through the listener method
+	 * @since 6.1
+	 */
+	public boolean shouldHandle(ApplicationEvent event) {
+		return shouldHandle(event, resolveArguments(event));
+	}
+
+	private boolean shouldHandle(ApplicationEvent event, @Nullable Object[] args) {
+		if (args == null) {
+			return false;
+		}
+		String condition = getCondition();
+		if (StringUtils.hasText(condition)) {
+			Assert.notNull(this.evaluator, "EventExpressionEvaluator must not be null");
+			return this.evaluator.condition(
+					condition, event, this.targetMethod, this.methodKey, args);
+		}
+		return true;
 	}
 
 	/**
@@ -274,7 +323,7 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 					handleAsyncError(ex);
 				}
 				else if (event != null) {
-					publishEvent(event);
+					publishEvents(event);
 				}
 			});
 		}
@@ -314,19 +363,6 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 		logger.error("Unexpected error occurred in asynchronous listener", t);
 	}
 
-	private boolean shouldHandle(ApplicationEvent event, @Nullable Object[] args) {
-		if (args == null) {
-			return false;
-		}
-		String condition = getCondition();
-		if (StringUtils.hasText(condition)) {
-			Assert.notNull(this.evaluator, "EventExpressionEvaluator must not be null");
-			return this.evaluator.condition(
-					condition, event, this.targetMethod, this.methodKey, args, this.applicationContext);
-		}
-		return true;
-	}
-
 	/**
 	 * Invoke the event listener method with the given argument values.
 	 */
@@ -340,6 +376,9 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 
 		ReflectionUtils.makeAccessible(this.method);
 		try {
+			if (KotlinDetector.isSuspendingFunction(this.method)) {
+				return CoroutinesUtils.invokeSuspendingFunction(this.method, bean, args);
+			}
 			return this.method.invoke(bean, args);
 		}
 		catch (IllegalArgumentException ex) {
@@ -366,7 +405,7 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 	 * Return the target bean instance to use.
 	 */
 	protected Object getTargetBean() {
-		Assert.notNull(this.applicationContext, "ApplicationContext must no be null");
+		Assert.notNull(this.applicationContext, "ApplicationContext must not be null");
 		return this.applicationContext.getBean(this.beanName);
 	}
 
@@ -466,6 +505,9 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 	}
 
 
+	/**
+	 * Inner class to avoid a hard dependency on the Reactive Streams API at runtime.
+	 */
 	private class ReactiveResultHandler {
 
 		public boolean subscribeToPublisher(Object result) {
@@ -479,6 +521,9 @@ public class ApplicationListenerMethodAdapter implements GenericApplicationListe
 	}
 
 
+	/**
+	 * Reactive Streams Subscriber for publishing follow-up events.
+	 */
 	private class EventPublicationSubscriber implements Subscriber<Object> {
 
 		@Override

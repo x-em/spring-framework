@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.messaging.rsocket.RSocketRequester;
 import org.springframework.messaging.rsocket.RSocketStrategies;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.MimeType;
 import org.springframework.util.StringUtils;
 import org.springframework.util.StringValueResolver;
@@ -67,14 +68,13 @@ final class RSocketServiceMethod {
 	RSocketServiceMethod(
 			Method method, Class<?> containingClass, List<RSocketServiceArgumentResolver> argumentResolvers,
 			RSocketRequester rsocketRequester, @Nullable StringValueResolver embeddedValueResolver,
-			ReactiveAdapterRegistry reactiveRegistry, Duration blockTimeout) {
+			ReactiveAdapterRegistry reactiveRegistry, @Nullable Duration blockTimeout) {
 
 		this.method = method;
 		this.parameters = initMethodParameters(method);
 		this.argumentResolvers = argumentResolvers;
 		this.route = initRoute(method, containingClass, rsocketRequester.strategies(), embeddedValueResolver);
-		this.responseFunction = initResponseFunction(
-				rsocketRequester, method, reactiveRegistry, blockTimeout);
+		this.responseFunction = initResponseFunction(rsocketRequester, method, reactiveRegistry, blockTimeout);
 	}
 
 	private static MethodParameter[] initMethodParameters(Method method) {
@@ -125,7 +125,7 @@ final class RSocketServiceMethod {
 
 	private static Function<RSocketRequestValues, Object> initResponseFunction(
 			RSocketRequester requester, Method method,
-			ReactiveAdapterRegistry reactiveRegistry, Duration blockTimeout) {
+			ReactiveAdapterRegistry reactiveRegistry, @Nullable Duration blockTimeout) {
 
 		MethodParameter returnParam = new MethodParameter(method, -1);
 		Class<?> returnType = returnParam.getParameterType();
@@ -135,9 +135,7 @@ final class RSocketServiceMethod {
 		Class<?> actualType = actualParam.getNestedParameterType();
 
 		Function<RSocketRequestValues, Publisher<?>> responseFunction;
-		if (actualType.equals(void.class) || actualType.equals(Void.class) ||
-				(reactiveAdapter != null && reactiveAdapter.isNoValue())) {
-
+		if (ClassUtils.isVoidType(actualType) || (reactiveAdapter != null && reactiveAdapter.isNoValue())) {
 			responseFunction = values -> {
 				RSocketRequester.RetrieveSpec retrieveSpec = initRequest(requester, values);
 				return (values.getPayload() == null && values.getPayloadValue() == null ?
@@ -163,9 +161,16 @@ final class RSocketServiceMethod {
 			if (reactiveAdapter != null) {
 				return reactiveAdapter.fromPublisher(responsePublisher);
 			}
-			return (blockForOptional ?
-					((Mono<?>) responsePublisher).blockOptional(blockTimeout) :
-					((Mono<?>) responsePublisher).block(blockTimeout));
+			if (blockForOptional) {
+				return (blockTimeout != null ?
+						((Mono<?>) responsePublisher).blockOptional(blockTimeout) :
+						((Mono<?>) responsePublisher).blockOptional());
+			}
+			else {
+				return (blockTimeout != null ?
+						((Mono<?>) responsePublisher).block(blockTimeout) :
+						((Mono<?>) responsePublisher).block());
+			}
 		});
 	}
 

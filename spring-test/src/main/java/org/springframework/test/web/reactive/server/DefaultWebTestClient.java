@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.spi.mapper.MappingProvider;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
 import org.reactivestreams.Publisher;
@@ -57,6 +59,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.util.UriBuilder;
 import org.springframework.web.util.UriBuilderFactory;
 
@@ -71,6 +74,9 @@ import org.springframework.web.util.UriBuilderFactory;
 class DefaultWebTestClient implements WebTestClient {
 
 	private final WiretapConnector wiretapConnector;
+
+	@Nullable
+	private final JsonEncoderDecoder jsonEncoderDecoder;
 
 	private final ExchangeFunction exchangeFunction;
 
@@ -91,13 +97,15 @@ class DefaultWebTestClient implements WebTestClient {
 	private final AtomicLong requestIndex = new AtomicLong();
 
 
-	DefaultWebTestClient(ClientHttpConnector connector,
+	DefaultWebTestClient(ClientHttpConnector connector, ExchangeStrategies exchangeStrategies,
 			Function<ClientHttpConnector, ExchangeFunction> exchangeFactory, UriBuilderFactory uriBuilderFactory,
 			@Nullable HttpHeaders headers, @Nullable MultiValueMap<String, String> cookies,
 			Consumer<EntityExchangeResult<?>> entityResultConsumer,
 			@Nullable Duration responseTimeout, DefaultWebTestClientBuilder clientBuilder) {
 
 		this.wiretapConnector = new WiretapConnector(connector);
+		this.jsonEncoderDecoder = JsonEncoderDecoder.from(
+				exchangeStrategies.messageWriters(), exchangeStrategies.messageReaders());
 		this.exchangeFunction = exchangeFactory.apply(this.wiretapConnector);
 		this.uriBuilderFactory = uriBuilderFactory;
 		this.defaultHeaders = headers;
@@ -186,16 +194,13 @@ class DefaultWebTestClient implements WebTestClient {
 		private final Map<String, Object> attributes = new LinkedHashMap<>(4);
 
 		@Nullable
-		private Consumer<ClientHttpRequest> httpRequestConsumer;
-
-		@Nullable
 		private String uriTemplate;
 
 		private final String requestId;
 
 		DefaultRequestBodyUriSpec(HttpMethod httpMethod) {
 			this.httpMethod = httpMethod;
-			this.requestId = String.valueOf(requestIndex.incrementAndGet());
+			this.requestId = String.valueOf(DefaultWebTestClient.this.requestIndex.incrementAndGet());
 			this.headers = new HttpHeaders();
 			this.headers.add(WebTestClient.WEBTESTCLIENT_REQUEST_ID, this.requestId);
 		}
@@ -203,19 +208,19 @@ class DefaultWebTestClient implements WebTestClient {
 		@Override
 		public RequestBodySpec uri(String uriTemplate, Object... uriVariables) {
 			this.uriTemplate = uriTemplate;
-			return uri(uriBuilderFactory.expand(uriTemplate, uriVariables));
+			return uri(DefaultWebTestClient.this.uriBuilderFactory.expand(uriTemplate, uriVariables));
 		}
 
 		@Override
 		public RequestBodySpec uri(String uriTemplate, Map<String, ?> uriVariables) {
 			this.uriTemplate = uriTemplate;
-			return uri(uriBuilderFactory.expand(uriTemplate, uriVariables));
+			return uri(DefaultWebTestClient.this.uriBuilderFactory.expand(uriTemplate, uriVariables));
 		}
 
 		@Override
 		public RequestBodySpec uri(Function<UriBuilder, URI> uriFunction) {
 			this.uriTemplate = null;
-			return uri(uriFunction.apply(uriBuilderFactory.builder()));
+			return uri(uriFunction.apply(DefaultWebTestClient.this.uriBuilderFactory.builder()));
 		}
 
 		@Override
@@ -358,55 +363,42 @@ class DefaultWebTestClient implements WebTestClient {
 					initRequestBuilder().body(this.inserter).build() :
 					initRequestBuilder().build());
 
-			ClientResponse response = exchangeFunction.exchange(request).block(getResponseTimeout());
+			ClientResponse response = DefaultWebTestClient.this.exchangeFunction.exchange(request).block(getResponseTimeout());
 			Assert.state(response != null, "No ClientResponse");
 
-			ExchangeResult result = wiretapConnector.getExchangeResult(
+			ExchangeResult result = DefaultWebTestClient.this.wiretapConnector.getExchangeResult(
 					this.requestId, this.uriTemplate, getResponseTimeout());
 
 			return new DefaultResponseSpec(result, response,
+					DefaultWebTestClient.this.jsonEncoderDecoder,
 					DefaultWebTestClient.this.entityResultConsumer, getResponseTimeout());
 		}
 
 		private ClientRequest.Builder initRequestBuilder() {
-			ClientRequest.Builder builder = ClientRequest.create(this.httpMethod, initUri())
-					.headers(headers -> headers.addAll(initHeaders()))
-					.cookies(cookies -> cookies.addAll(initCookies()))
+			return ClientRequest.create(this.httpMethod, initUri())
+					.headers(headersToUse -> {
+						if (!CollectionUtils.isEmpty(DefaultWebTestClient.this.defaultHeaders)) {
+							headersToUse.putAll(DefaultWebTestClient.this.defaultHeaders);
+						}
+						if (!CollectionUtils.isEmpty(this.headers)) {
+							headersToUse.putAll(this.headers);
+						}
+					})
+					.cookies(cookiesToUse -> {
+						if (!CollectionUtils.isEmpty(DefaultWebTestClient.this.defaultCookies)) {
+							cookiesToUse.putAll(DefaultWebTestClient.this.defaultCookies);
+						}
+						if (!CollectionUtils.isEmpty(this.cookies)) {
+							cookiesToUse.putAll(this.cookies);
+						}
+					})
 					.attributes(attributes -> attributes.putAll(this.attributes));
-			if (this.httpRequestConsumer != null) {
-				builder.httpRequest(this.httpRequestConsumer);
-			}
-			return builder;
 		}
 
 		private URI initUri() {
-			return (this.uri != null ? this.uri : uriBuilderFactory.expand(""));
+			return (this.uri != null ? this.uri : DefaultWebTestClient.this.uriBuilderFactory.expand(""));
 		}
 
-		private HttpHeaders initHeaders() {
-			if (CollectionUtils.isEmpty(defaultHeaders)) {
-				return this.headers;
-			}
-			HttpHeaders result = new HttpHeaders();
-			result.putAll(defaultHeaders);
-			result.putAll(this.headers);
-			return result;
-		}
-
-		private MultiValueMap<String, String> initCookies() {
-			if (CollectionUtils.isEmpty(this.cookies)) {
-				return (defaultCookies != null ? defaultCookies : new LinkedMultiValueMap<>());
-			}
-			else if (CollectionUtils.isEmpty(defaultCookies)) {
-				return this.cookies;
-			}
-			else {
-				MultiValueMap<String, String> result = new LinkedMultiValueMap<>();
-				result.putAll(defaultCookies);
-				result.putAll(this.cookies);
-				return result;
-			}
-		}
 	}
 
 
@@ -416,6 +408,9 @@ class DefaultWebTestClient implements WebTestClient {
 
 		private final ClientResponse response;
 
+		@Nullable
+		private final JsonEncoderDecoder jsonEncoderDecoder;
+
 		private final Consumer<EntityExchangeResult<?>> entityResultConsumer;
 
 		private final Duration timeout;
@@ -423,11 +418,13 @@ class DefaultWebTestClient implements WebTestClient {
 
 		DefaultResponseSpec(
 				ExchangeResult exchangeResult, ClientResponse response,
+				@Nullable JsonEncoderDecoder jsonEncoderDecoder,
 				Consumer<EntityExchangeResult<?>> entityResultConsumer,
 				Duration timeout) {
 
 			this.exchangeResult = exchangeResult;
 			this.response = response;
+			this.jsonEncoderDecoder = jsonEncoderDecoder;
 			this.entityResultConsumer = entityResultConsumer;
 			this.timeout = timeout;
 		}
@@ -483,10 +480,10 @@ class DefaultWebTestClient implements WebTestClient {
 			ByteArrayResource resource = this.response.bodyToMono(ByteArrayResource.class).block(this.timeout);
 			byte[] body = (resource != null ? resource.getByteArray() : null);
 			EntityExchangeResult<byte[]> entityResult = initEntityExchangeResult(body);
-			return new DefaultBodyContentSpec(entityResult);
+			return new DefaultBodyContentSpec(entityResult, this.jsonEncoderDecoder);
 		}
 
-		private  <B> EntityExchangeResult<B> initEntityExchangeResult(@Nullable B body) {
+		private <B> EntityExchangeResult<B> initEntityExchangeResult(@Nullable B body) {
 			EntityExchangeResult<B> result = new EntityExchangeResult<>(this.exchangeResult, body);
 			result.assertWithDiagnostics(() -> this.entityResultConsumer.accept(result));
 			return result;
@@ -528,9 +525,7 @@ class DefaultWebTestClient implements WebTestClient {
 				// that is not a RuntimeException, but since ExceptionCollector may
 				// throw a checked Exception, we handle this to appease the compiler
 				// and in case someone uses a "sneaky throws" technique.
-				AssertionError assertionError = new AssertionError(ex.getMessage());
-				assertionError.initCause(ex);
-				throw assertionError;
+				throw new AssertionError(ex.getMessage(), ex);
 			}
 			return this;
 		}
@@ -644,10 +639,14 @@ class DefaultWebTestClient implements WebTestClient {
 
 		private final EntityExchangeResult<byte[]> result;
 
+		@Nullable
+		private final JsonEncoderDecoder jsonEncoderDecoder;
+
 		private final boolean isEmpty;
 
-		DefaultBodyContentSpec(EntityExchangeResult<byte[]> result) {
+		DefaultBodyContentSpec(EntityExchangeResult<byte[]> result, @Nullable JsonEncoderDecoder jsonEncoderDecoder) {
 			this.result = result;
+			this.jsonEncoderDecoder = jsonEncoderDecoder;
 			this.isEmpty = (result.getResponseBody() == null || result.getResponseBody().length == 0);
 		}
 
@@ -685,8 +684,16 @@ class DefaultWebTestClient implements WebTestClient {
 		}
 
 		@Override
+		public JsonPathAssertions jsonPath(String expression) {
+			return new JsonPathAssertions(this, getBodyAsString(), expression,
+					JsonPathConfigurationProvider.getConfiguration(this.jsonEncoderDecoder));
+		}
+
+		@Override
+		@SuppressWarnings("removal")
 		public JsonPathAssertions jsonPath(String expression, Object... args) {
-			return new JsonPathAssertions(this, getBodyAsString(), expression, args);
+			Assert.hasText(expression, "expression must not be null or empty");
+			return jsonPath(expression.formatted(args));
 		}
 
 		@Override
@@ -713,6 +720,20 @@ class DefaultWebTestClient implements WebTestClient {
 		@Override
 		public EntityExchangeResult<byte[]> returnResult() {
 			return this.result;
+		}
+	}
+
+
+	private static class JsonPathConfigurationProvider {
+
+		static Configuration getConfiguration(@Nullable JsonEncoderDecoder jsonEncoderDecoder) {
+			Configuration jsonPathConfiguration = Configuration.defaultConfiguration();
+			if (jsonEncoderDecoder != null) {
+				MappingProvider mappingProvider = new EncoderDecoderMappingProvider(
+						jsonEncoderDecoder.encoder(), jsonEncoderDecoder.decoder());
+				return jsonPathConfiguration.mappingProvider(mappingProvider);
+			}
+			return jsonPathConfiguration;
 		}
 	}
 

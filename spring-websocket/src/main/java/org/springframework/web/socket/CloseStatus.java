@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.web.socket;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -53,7 +54,7 @@ public final class CloseStatus implements Serializable {
 	 * "1002 indicates that an endpoint is terminating the connection due to a protocol
 	 * error."
 	 */
-	public static final CloseStatus PROTOCOL_ERROR  = new CloseStatus(1002);
+	public static final CloseStatus PROTOCOL_ERROR = new CloseStatus(1002);
 
 	/**
 	 * "1003 indicates that an endpoint is terminating the connection because it has
@@ -145,7 +146,8 @@ public final class CloseStatus implements Serializable {
 	 * client that may be done during normal shutdown.
 	 * @since 4.0.3
 	 */
-	public static final CloseStatus SESSION_NOT_RELIABLE = new CloseStatus(4500);
+	public static final CloseStatus SESSION_NOT_RELIABLE =
+			new CloseStatus(4500).withReason("Failed to send message within the configured send limit");
 
 
 	private final int code;
@@ -206,18 +208,13 @@ public final class CloseStatus implements Serializable {
 
 	@Override
 	public boolean equals(@Nullable Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof CloseStatus otherStatus)) {
-			return false;
-		}
-		return (this.code == otherStatus.code && ObjectUtils.nullSafeEquals(this.reason, otherStatus.reason));
+		return (this == other || (other instanceof CloseStatus that &&
+				this.code == that.code && ObjectUtils.nullSafeEquals(this.reason, that.reason)));
 	}
 
 	@Override
 	public int hashCode() {
-		return this.code * 29 + ObjectUtils.nullSafeHashCode(this.reason);
+		return Objects.hash(this.code, this.reason);
 	}
 
 	@Override

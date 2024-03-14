@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ import static org.springframework.core.ResolvableType.forClassWithGenerics;
 import static org.springframework.web.testfixture.method.ResolvableMethod.on;
 
 /**
- * Unit tests for {@link ResponseBodyEmitterReturnValueHandler}.
+ * Tests for {@link ResponseBodyEmitterReturnValueHandler}.
  *
  * @author Rossen Stoyanchev
  */
@@ -121,7 +121,7 @@ class ResponseBodyEmitterReturnValueHandlerTests {
 		this.handler.handleReturnValue(emitter, type, this.mavContainer, this.webRequest);
 
 		assertThat(this.request.isAsyncStarted()).isTrue();
-		assertThat(this.response.getContentAsString()).isEqualTo("");
+		assertThat(this.response.getContentAsString()).isEmpty();
 
 		SimpleBean bean = new SimpleBean();
 		bean.setId(1L);
@@ -233,7 +233,7 @@ class ResponseBodyEmitterReturnValueHandlerTests {
 	}
 
 	@Test
-	@SuppressWarnings({"try","unused"})
+	@SuppressWarnings({"try","unused", "deprecation"})
 	void responseBodyFluxWithThreadLocal() throws Exception {
 		this.request.addHeader("Accept", "text/event-stream");
 

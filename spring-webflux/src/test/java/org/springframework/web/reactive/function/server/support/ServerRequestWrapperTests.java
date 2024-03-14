@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ class ServerRequestWrapperTests {
 		String value = "bar";
 		given(mockRequest.attribute(name)).willReturn(Optional.of(value));
 
-		assertThat(wrapper.attribute(name)).isEqualTo(Optional.of(value));
+		assertThat(wrapper.attribute(name)).contains(value);
 	}
 
 	@Test
@@ -101,7 +101,7 @@ class ServerRequestWrapperTests {
 		String value = "bar";
 		given(mockRequest.queryParam(name)).willReturn(Optional.of(value));
 
-		assertThat(wrapper.queryParam(name)).isEqualTo(Optional.of(value));
+		assertThat(wrapper.queryParam(name)).contains(value);
 	}
 
 	@Test
@@ -131,7 +131,6 @@ class ServerRequestWrapperTests {
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
 	void cookies() {
 		MultiValueMap<String, HttpCookie> cookies = mock();
 		given(mockRequest.cookies()).willReturn(cookies);

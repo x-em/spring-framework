@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,8 +119,8 @@ final class LogAdapter {
 
 		public static Log createLocationAwareLog(String name) {
 			Logger logger = LoggerFactory.getLogger(name);
-			return (logger instanceof LocationAwareLogger ?
-					new Slf4jLocationAwareLog((LocationAwareLogger) logger) : new Slf4jLog<>(logger));
+			return (logger instanceof LocationAwareLogger locationAwareLogger ?
+					new Slf4jLocationAwareLog(locationAwareLogger) : new Slf4jLog<>(logger));
 		}
 
 		public static Log createLog(String name) {
@@ -145,9 +145,12 @@ final class LogAdapter {
 		private static final LoggerContext loggerContext =
 				LogManager.getContext(Log4jLog.class.getClassLoader(), false);
 
-		private final ExtendedLogger logger;
+		private final String name;
+
+		private final transient ExtendedLogger logger;
 
 		public Log4jLog(String name) {
+			this.name = name;
 			LoggerContext context = loggerContext;
 			if (context == null) {
 				// Circular call in early-init scenario -> static field not initialized yet
@@ -247,19 +250,23 @@ final class LogAdapter {
 		}
 
 		private void log(Level level, Object message, Throwable exception) {
-			if (message instanceof String) {
+			if (message instanceof String text) {
 				// Explicitly pass a String argument, avoiding Log4j's argument expansion
 				// for message objects in case of "{}" sequences (SPR-16226)
 				if (exception != null) {
-					this.logger.logIfEnabled(FQCN, level, null, (String) message, exception);
+					this.logger.logIfEnabled(FQCN, level, null, text, exception);
 				}
 				else {
-					this.logger.logIfEnabled(FQCN, level, null, (String) message);
+					this.logger.logIfEnabled(FQCN, level, null, text);
 				}
 			}
 			else {
 				this.logger.logIfEnabled(FQCN, level, null, message, exception);
 			}
+		}
+
+		protected Object readResolve() {
+			return new Log4jLog(this.name);
 		}
 	}
 
@@ -593,8 +600,8 @@ final class LogAdapter {
 		private void log(java.util.logging.Level level, Object message, Throwable exception) {
 			if (this.logger.isLoggable(level)) {
 				LogRecord rec;
-				if (message instanceof LogRecord) {
-					rec = (LogRecord) message;
+				if (message instanceof LogRecord logRecord) {
+					rec = logRecord;
 				}
 				else {
 					rec = new LocationResolvingLogRecord(level, String.valueOf(message));

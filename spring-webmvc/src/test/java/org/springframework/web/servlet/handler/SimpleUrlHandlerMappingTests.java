@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,11 +43,10 @@ import static org.springframework.web.servlet.HandlerMapping.PATH_WITHIN_HANDLER
  * @author Rod Johnson
  * @author Juergen Hoeller
  */
-public class SimpleUrlHandlerMappingTests {
+class SimpleUrlHandlerMappingTests {
 
 	@Test
-	@SuppressWarnings("resource")
-	public void handlerBeanNotFound() {
+	void handlerBeanNotFound() {
 		MockServletContext sc = new MockServletContext("");
 		XmlWebApplicationContext root = new XmlWebApplicationContext();
 		root.setServletContext(sc);
@@ -69,7 +68,7 @@ public class SimpleUrlHandlerMappingTests {
 	}
 
 	@Test
-	public void testNewlineInRequest() throws Exception {
+	void testNewlineInRequest() throws Exception {
 		Object controller = new Object();
 		UrlPathHelper urlPathHelper = new UrlPathHelper();
 		urlPathHelper.setUrlDecode(false);
@@ -157,7 +156,7 @@ public class SimpleUrlHandlerMappingTests {
 
 		request = PathPatternsTestUtils.initRequest("GET", "/somePath", usePathPatterns);
 		chain = getHandler(hm, request);
-		assertThat(chain.getHandler() == defaultBean).as("Handler is correct bean").isTrue();
+		assertThat(chain.getHandler()).as("Handler is correct bean").isSameAs(defaultBean);
 		assertThat(request.getAttribute(PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE)).isEqualTo("/somePath");
 	}
 
